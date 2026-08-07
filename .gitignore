@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+
+# Virtualenvs
+.venv/
+venv/
+
+# CMake / build output
+build/
+build-*/
+cmake-build-*/
+CMakeCache.txt
+CMakeFiles/
+
+# Documentation build artefacts. Named for what the engine emits (see
+# cmake/sphinx.cmake and cmake/doxygen.cmake) so a stray in-tree build cannot be
+# committed: deploy/ is the rendered site, doctrees*/ the Sphinx caches (both the
+# stage-2 one and the separate stage-1 doctrees-index/), and the rest are
+# doxygen/sphinx intermediates.
+deploy/
+doctrees/
+doctrees-index/
+*.doxyfile
+*.doxygen-nav
+*.tag
+
+# Editor / OS
+.idea/
+.vscode/
+*.swp
+.DS_Store
