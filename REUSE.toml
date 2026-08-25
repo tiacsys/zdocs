@@ -1,0 +1,46 @@
+version = 1
+
+# Files that cannot carry an inline SPDX header, or where one would leak into a
+# build artifact. Everything else in this repository is annotated in-file.
+
+# Documentation prose and test fixtures. The .json fixtures have no comment
+# syntax at all; the .rst files are annotated here rather than in-file so the
+# rendered pages stay free of licensing boilerplate.
+[[annotations]]
+path = [
+    "**/*.json",
+    "**/*.log",
+    "**/*.rst",
+    "**/*.xml",
+    "**/.gitignore",
+]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "Copyright (c) 2026 inovex GmbH"
+SPDX-License-Identifier = "Apache-2.0"
+
+# The two Doxygen HTML templates. Doxygen copies these verbatim into every
+# generated page, so an HTML comment here would be emitted ahead of the
+# <!DOCTYPE html> of each page and put the browser into quirks mode.
+[[annotations]]
+path = [
+    "doxygen/doxygen-footer.html",
+    "doxygen/doxygen-header.html",
+]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "Copyright (c) 2026 inovex GmbH"
+SPDX-License-Identifier = "Apache-2.0"
+
+# Vendored verbatim from https://github.com/jothepro/doxygen-awesome-css — see
+# doxygen/README.rst for the version and the vendoring rationale. These files
+# already carry their own `SPDX-License-Identifier: MIT` tag; what they lack is
+# a machine-readable copyright line, supplied here so they stay unmodified.
+[[annotations]]
+path = [
+    "doxygen/doxygen-awesome-darkmode-toggle.js",
+    "doxygen/doxygen-awesome-sidebar-only-darkmode-toggle.css",
+    "doxygen/doxygen-awesome-sidebar-only.css",
+    "doxygen/doxygen-awesome.css",
+]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "Copyright (c) 2021 - 2025 jothepro"
+SPDX-License-Identifier = "MIT"
