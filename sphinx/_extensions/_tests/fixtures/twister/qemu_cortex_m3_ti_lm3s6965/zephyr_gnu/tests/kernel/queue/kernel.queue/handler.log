@@ -1,0 +1,10 @@
+START - test_queue_put
+PASS - test_queue_put
+START - test_queue_get
+PASS - test_queue_get
+--- TESTCASE COMPLETE ---
+SUMMARY: passed=2 failed=0 skipped=0
+BUILD SUCCESSFUL in 0.5s
+--- platform: qemu_cortex_m3/ti_lm3s6965 ---
+--- toolchain: zephyr_gnu ---
+--- scenario: kernel.queue ---

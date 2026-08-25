@@ -1,0 +1,58 @@
+/* Copyright (c) 2026 inovex GmbH */
+/* SPDX-License-Identifier: Apache-2.0 */
+
+/*
+ * zdocs' own doxygen styling — the engine's, not a consumer's.
+ *
+ * Everything here supports markup that zdocs' doxygen-header.html emits and the
+ * vendored doxygen-awesome theme therefore knows nothing about. It is loaded
+ * after the theme and BEFORE any ZDOCS_DOXYGEN_EXTRA_CSS, so a project can
+ * restyle all of it without patching the engine.
+ *
+ * The distinction matters: these rules are not branding. Leaving them out of the
+ * engine is how the version came to be rendered twice for every project except
+ * the one whose brand stylesheet happened to hide the duplicate.
+ */
+
+/*
+ * Header height.
+ *
+ * doxygen-awesome-sidebar-only.css lays the whole page out from this one
+ * constant: #side-nav is positioned at `top: var(--top-height)`, #top is clipped
+ * to it with `overflow: hidden`, and #nav-tree / #doc-content size themselves
+ * from it. Its stock value (120px) fits doxygen's stock header, which is a
+ * single row.
+ *
+ * zdocs' header is taller -- it adds the #projectversion row below -- which put
+ * the search box at y=142 while the sidebar still started at y=120, so the nav
+ * tree was drawn over the lower half of the search box. Nothing in the markup or
+ * the CSS text shows that: the two files are individually valid and disagree
+ * only once a browser lays them out.
+ *
+ * 150px measured in headless chromium at 1400x900: #top's lowest element
+ * (span#searchBoxPos1, injected by doxygen's search script after load) ends at
+ * 142px, leaving a small margin. tests/test_01_doxygen.py re-measures it rather
+ * than trusting this comment.
+ *
+ * A consumer that makes the header taller -- a PROJECT_LOGO, or a PROJECT_BRIEF
+ * long enough to wrap in the sidebar -- must raise this in its own stylesheet.
+ */
+html {
+    --top-height: 150px;
+}
+
+/* Version row in the title area (see doxygen-header.html). Centred under the
+ * project name / logo and above the search box, which is where the sphinx
+ * documents show it — the two toolchains sit in one deployed set and should not
+ * disagree about their own header.
+ *
+ * --primary-dark-color is doxygen-awesome's, so this follows the active theme
+ * (including the dark-mode toggle) instead of pinning a colour of its own.
+ */
+#projectversion {
+    color: var(--primary-dark-color);
+    padding: 2px 0 10px 0;
+    text-align: center;
+    font-size: 0.85rem;
+    font-weight: 600;
+}

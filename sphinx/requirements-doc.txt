@@ -1,0 +1,53 @@
+# Copyright (c) 2026 inovex GmbH
+#
+# SPDX-License-Identifier: Apache-2.0
+
+# Python requirements for building documentation with zdocs.
+#
+# These are the ENGINE's own dependencies -- what any consumer must install to
+# run zdocs at all, not the requirements of zdocs' own docset in doc/. A
+# consumer adds its own pins on top for extensions its conf.py loads directly.
+#
+# PINNED ON PURPOSE. The engine derives its whole cross-reference structure from
+# third-party Sphinx extensions, and it has been broken once already by an
+# unpinned upgrade moving under it. A doc build that silently changes behaviour
+# because a transitive release landed is the failure mode to design out, not to
+# debug later. Bump these deliberately, in their own commit, with a full green
+# run of both test suites as the evidence.
+#
+# Versions below are the ones both suites were verified against.
+
+# -- Core ---------------------------------------------------------------------
+sphinx==9.1.0
+sphinx_rtd_theme==3.1.0
+
+# -- Loaded unconditionally by zdocs_conf.py's engine_extensions ---------------
+# sphinx-needs: structured requirements/specifications and the traceability
+# graph; also the needs.json export the registry's cross-document import reads.
+sphinx-needs==8.1.1
+# sphinxcontrib-doxylink: :<prefix>:`symbol` references into the doxygen
+# documents. The map is derived from documents.yaml (docrefs.Refs.doxylink).
+sphinxcontrib-doxylink==1.13.0
+
+# -- Used by the registry tooling, not by Sphinx directly ----------------------
+# scripts/docrefs.py, scripts/doccheck.py and sphinx/_extensions/rst_builders.py
+# all `import yaml` to read documents.yaml. The engine is unusable without it.
+PyYAML==6.0.3
+
+# -- Optional builders ---------------------------------------------------------
+# sphinx-autobuild backs the `<doc>-html-live` targets (see cmake/sphinx.cmake).
+sphinx-autobuild==2025.8.25
+
+# -- Conditional: `needs: source: inventory` -----------------------------------
+# docrefs._needs_stub_from_inventory() shells out to the `sphobjinv` CLI (not an
+# import, which is why it is easy to miss) to synthesize external needs from a
+# plain intersphinx inventory. Deliberately unpinned: it is NOT INSTALLED in the
+# verified venv and no registry entry in either repo uses `source: inventory`,
+# so that path has never run. Pin it at the same time as installing it, if a
+# document ever needs it.
+sphobjinv
+
+# -- System tools (not pip) ----------------------------------------------------
+# doxygen   every `kind: doxygen` document.
+# dot       graphviz, for sphinx.ext.graphviz and sphinx-needs' needflow.
+# latexmk   ONLY for the `latex` PDF builder, which no aggregate target pulls in.

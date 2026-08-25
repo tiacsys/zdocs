@@ -1,0 +1,107 @@
+/* Copyright (c) 2026 inovex GmbH */
+/* SPDX-License-Identifier: Apache-2.0 */
+
+/*
+ * zdocs' own Sphinx styling — the engine's, not a consumer's.
+ *
+ * Rules for markup that zdocs' templates add and the theme knows nothing about.
+ * Loaded after the theme and before any consumer stylesheet, so a project can
+ * restyle all of it without patching the engine.
+ *
+ * The distinction is the same one that applies to zdocs-doxygen.css: these are
+ * not branding. Leaving them to a consumer is how the Doxygen header came to
+ * depend on a stylesheet the engine did not ship.
+ */
+
+/* Sidebar version, under the project title (see _templates/layout.html).
+ *
+ * sphinx_rtd_theme 3.1.0 still styles `.wy-side-nav-search` for white text on
+ * the header background, but no longer carries a rule for `div.version` — the
+ * old one went with the block itself. These values reproduce the theme's
+ * historical appearance rather than inventing one, so a document looks the way
+ * an RTD-themed document is expected to look.
+ */
+.wy-side-nav-search > div.zdocs-version {
+    margin-top: -0.4em;
+    margin-bottom: 0.8em;
+    color: rgba(255, 255, 255, 0.6);
+    font-size: 90%;
+}
+
+/* ---------------------------------------------------------------------------
+ * Cross-document navigation (see _templates/layout.html).
+ *
+ * Colours are deliberately expressed as translucent white/black over whatever
+ * the theme's sidebar background happens to be, rather than as literal values.
+ * The version this was migrated from used one company's palette, which meant the
+ * engine could only look right for one project; here the block reads as distinct
+ * from the document's own toctree under any theme colour a consumer picks.
+ */
+.wy-nav-side .reference-group-caption {
+    color: rgba(255, 255, 255, 0.9) !important;
+    background: rgba(0, 0, 0, 0.25);
+    border-left: 3px solid rgba(255, 255, 255, 0.8);
+}
+
+.wy-nav-side .wy-menu-vertical a.reference-group-link {
+    color: rgba(255, 255, 255, 0.9);
+    background: rgba(0, 0, 0, 0.15);
+}
+
+.wy-nav-side .wy-menu-vertical a.reference-group-link:hover {
+    background-color: rgba(0, 0, 0, 0.4);
+    color: #fff;
+}
+
+/* A group of one links straight to the document (no caption + list), but keeps
+ * the caption's look so it still reads as a distinct sidebar entry. */
+.wy-nav-side .reference-group-caption a.reference-group-caption-link {
+    display: inline;
+    padding: 0;
+    color: rgba(255, 255, 255, 0.9);
+    text-decoration: none;
+}
+
+.wy-nav-side .reference-group-caption a.reference-group-caption-link:hover {
+    color: #fff;
+}
+
+/* Collapsible groups use native <details>/<summary> — no JavaScript. <summary>
+ * is not a <p>, so it misses the theme's ".wy-menu-vertical p.caption" sizing
+ * rule; restated here. */
+.wy-nav-side .wy-menu-vertical details.reference-group-details {
+    margin: 12px 0 0;
+}
+
+.wy-nav-side .wy-menu-vertical summary.reference-group-caption {
+    display: block;
+    cursor: pointer;
+    height: 32px;
+    line-height: 32px;
+    padding: 0 1.618em;
+    font-weight: 700;
+    text-transform: uppercase;
+    font-size: 85%;
+    white-space: nowrap;
+    list-style: none;   /* suppress Firefox/Safari's own disclosure marker ... */
+}
+
+.wy-nav-side .wy-menu-vertical summary.reference-group-caption::-webkit-details-marker {
+    display: none;      /* ... and Chrome/WebKit's, leaving only the one below */
+}
+
+.wy-nav-side .wy-menu-vertical summary.reference-group-caption::before {
+    content: "\25B6";   /* right-pointing when collapsed */
+    display: inline-block;
+    margin-right: 0.5em;
+    color: rgba(255, 255, 255, 0.9);
+    transition: transform 0.15s ease-in-out;
+}
+
+.wy-nav-side .wy-menu-vertical details.reference-group-details[open] > summary.reference-group-caption::before {
+    transform: rotate(90deg);
+}
+
+.wy-nav-side .wy-menu-vertical details.reference-group-details ul {
+    margin: 0;
+}

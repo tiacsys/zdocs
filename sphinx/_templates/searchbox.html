@@ -1,0 +1,32 @@
+{# Copyright (c) 2026 inovex GmbH
+   SPDX-License-Identifier: Apache-2.0
+-#}
+
+{#
+  Restore the sidebar version block.
+
+  sphinx_rtd_theme 3.1.0 removed it: what replaced it is a version SWITCHER that
+  renders only under `READTHEDOCS or DEBUG` and is populated by the Read the Docs
+  addons. A self-hosted document therefore shows no version at all, however
+  carefully conf.py sets `version` — which is how a resolved, git-derived version
+  reached every rendered page and appeared on none of them.
+
+  These are controlled documents whose Doxygen counterparts display the version
+  prominently; one deployed set disagreeing with itself about something that
+  basic is the defect being fixed.
+
+  Overriding searchbox.html rather than layout.html is deliberate. The theme
+  includes the search box INSIDE its `sidebartitle` block, so appending to that
+  block via `super()` puts the version below the search box instead of under the
+  title. The alternative — overriding `sidebartitle` outright — means copying the
+  theme's logo and title markup into zdocs, where it would rot silently on the
+  next theme release. This way zdocs owns three lines and the theme keeps owning
+  its own layout.
+
+  Styled by zdocs-sphinx.css: the theme dropped its `div.version` rule along with
+  the block, and engine markup must not depend on a consumer supplying CSS.
+#}
+{%- if version %}
+<div class="version zdocs-version">{{ version }}</div>
+{%- endif %}
+{% include "!searchbox.html" %}

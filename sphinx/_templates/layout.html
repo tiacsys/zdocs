@@ -1,0 +1,57 @@
+{# Copyright (c) 2026 inovex GmbH
+   SPDX-License-Identifier: Apache-2.0
+-#}
+
+{% extends "!layout.html" %}
+{#
+  Cross-document navigation in the Sphinx sidebar.
+
+  The counterpart of the Doxygen side's cross-doc-nav: both read the SAME
+  registry (documents.yaml, via docrefs) so one deployed set has one navigation,
+  and adding a document to the registry makes it appear in every sibling of both
+  toolchains without anyone editing a template or a toctree.
+
+  `reference_groups` is put in html_context by zdocs_conf; it is absent for a
+  document built without a REGISTRY, which is a supported configuration — hence
+  the guard rather than an assumption.
+
+  Appended to the theme's `menu` block via super(), so the document's own toctree
+  is untouched and this is purely additive.
+
+  Group `mode` and `display` come from the registry, not from here:
+    single_doc_title_merge  a group of one renders as a direct link, since a
+                            heading over a single item is just noise;
+    collapsed_at_opening /  a native <details>, no JavaScript;
+    not_collapsed_at_opening
+    otherwise               a plain caption and list.
+#}
+{% block menu %}
+  {{ super() }}
+  {% if reference_groups %}
+  <div class="toctree-wrapper compound reference-groups-wrapper">
+    {% for group in reference_groups %}
+    {%- if group.mode == "single_doc_title_merge" and group.links|length == 1 %}
+    <p class="caption reference-group-caption" role="heading">
+      <a class="reference external reference-group-caption-link" href="{{ group.links[0].href }}">{{ group.links[0].label }}</a>
+    </p>
+    {%- elif group.display in ("collapsed_at_opening", "not_collapsed_at_opening") %}
+    <details class="reference-group-details"{% if group.display == "not_collapsed_at_opening" %} open{% endif %}>
+      <summary class="caption reference-group-caption" role="heading">{{ group.title }}</summary>
+      <ul>
+        {% for link in group.links %}
+        <li class="toctree-l1"><a class="reference external reference-group-link" href="{{ link.href }}">{{ link.label }}</a></li>
+        {% endfor %}
+      </ul>
+    </details>
+    {%- else %}
+    <p class="caption reference-group-caption" role="heading"><span class="caption-text">{{ group.title }}</span></p>
+    <ul>
+      {% for link in group.links %}
+      <li class="toctree-l1"><a class="reference external reference-group-link" href="{{ link.href }}">{{ link.label }}</a></li>
+      {% endfor %}
+    </ul>
+    {%- endif %}
+    {% endfor %}
+  </div>
+  {% endif %}
+{% endblock %}
