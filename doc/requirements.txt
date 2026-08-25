@@ -1,0 +1,17 @@
+# Copyright (c) 2026 inovex GmbH
+#
+# SPDX-License-Identifier: Apache-2.0
+
+# Python requirements for building zdocs' OWN documentation set (D11).
+#
+# This is doc/'s own dependency list, not the engine's — sphinx/requirements-doc.txt
+# is what every consumer installs; sphinxcontrib-moderncmakedomain is needed only
+# here, to extract the CMake API reference (api/cmake/modules.rst) from the
+# `#[==[.rst:` bracket comments in tools/zdocs/cmake/*.cmake (D3).
+-r ../sphinx/requirements-doc.txt
+sphinxcontrib-moderncmakedomain==3.29.0
+
+# -- System tools (not pip) -----------------------------------------------------
+# dot   Graphviz's binary, for sphinx.ext.graphviz — the two C4-style diagrams
+#       under manual/explanation/architecture/ render with `.. graphviz::` and
+#       the build fails without it. Not installable via pip.

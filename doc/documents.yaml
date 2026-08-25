@@ -1,0 +1,71 @@
+# Copyright (c) 2026 inovex GmbH
+#
+# SPDX-License-Identifier: Apache-2.0
+
+# zdocs' own document registry — the source of truth for this docset (D1).
+#
+# Two documents, both kind: sphinx, both builders: [html] (D1/D6): `manual`
+# carries the Diátaxis-organised consumer-facing material, `api` carries the
+# generated Python/CMake reference (D2). No `needs:`, no `testmodule:`, no
+# `doxygen_xml:` — this docset uses none of them (D6).
+#
+# FINDING (report §7, worth restating here): the group id for the "Manual"
+# group is deliberately NOT "manual" -- add_docs_from_registry's per-(group,
+# builder) aggregate targets are named "<group id>-<builder>", so a group id
+# equal to a document id of the same builder collides with that document's
+# OWN "<doc id>-<builder>" target at configure time (CMP0002 duplicate
+# target). Measured: with the group id literally "manual", configure fails
+# with "add_custom_target cannot create target 'manual-html' because another
+# target with the same name already exists." This is unguarded in the engine
+# (F7 lists no such validation) -- per rule 3 this is a finding to report,
+# not a reason to patch the engine, so the id below is "guide" while the
+# TITLE stays "Manual" (nothing in the acceptance test or the registry schema
+# ties a group's id to its title).
+docs_root: "."
+base_url: "http://localhost:8020/"
+
+# The page doccheck's smoke-page check reads. Every bullet on it exercises one
+# cross-reference channel this set uses; the check fails the build if any of
+# them rendered as plain text or as nothing at all. Without this key that check
+# is skipped entirely, which for a two-document set would leave doc-check with
+# only its dead-link scan — and the channels most likely to break silently here
+# (parse-time intersphinx roles into the api document) would go unwatched.
+xref_smoketest: "html/manual/reference/xref-smoke-test.html"
+
+# Both groups use `always_keep`, not the default `exclude_if_selected`: each
+# group has exactly ONE member document, so viewing that group's own page
+# with the default mode excludes the only link it would ever have shown,
+# leaving the group EMPTY and — per docrefs.py's own grouped_links() comment
+# ("groups left empty after filtering, no dangling heading") — dropped from
+# the rendered nav entirely on that document's own pages. `always_keep`
+# (already used the same way by samples/registry/documents.yaml's single-
+# document "interfaces" group) keeps the group's own heading and link
+# visible even from inside it.
+groups:
+  - id: guide
+    title: "Manual"
+    mode: "always_keep"
+    display: "disabled_collapsing"
+
+  - id: reference
+    title: "Reference"
+    mode: "always_keep"
+    display: "disabled_collapsing"
+
+documents:
+
+  manual:
+    title: "zdocs Manual"
+    kind: sphinx
+    group: guide
+    prefix: zdocs-manual
+    version_scope: "/"
+    builders: [html]
+
+  api:
+    title: "zdocs API Reference"
+    kind: sphinx
+    group: reference
+    prefix: zdocs-api
+    version_scope: /
+    builders: [html]
