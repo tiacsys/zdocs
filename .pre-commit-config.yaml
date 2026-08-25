@@ -1,0 +1,67 @@
+# Copyright (c) 2026 inovex GmbH
+#
+# SPDX-License-Identifier: Apache-2.0
+
+# Contributor-side gates. Install once per clone:
+#
+#   pre-commit install
+#
+# and run over everything (what CI should do) with:
+#
+#   pre-commit run --all-files
+#
+# Each rev is pinned to the tool version these settings were actually validated
+# against, not to "latest": a newer ruff enables rules nobody here has seen, and
+# the first contributor to hit them gets failures unrelated to their change.
+# Move the pins deliberately with `pre-commit autoupdate`, then re-run
+# `--all-files` and fix the fallout in its own commit.
+
+minimum_pre_commit_version: "4.0.0"
+
+repos:
+  # Python. --fix applies the safe fixes, --exit-non-zero-on-fix still fails the
+  # commit afterwards, so nothing is rewritten silently on the way past.
+  #
+  # ruff-format is deliberately NOT enabled. The engine's Python is hand-laid
+  # out in places where the layout carries meaning -- the column-aligned
+  # needs_types fixtures being the clearest case -- and a first `ruff format`
+  # run would reflow the entire codebase in one unreviewable commit. Enabling it
+  # is a decision to make on purpose, not a side effect of adding pre-commit.
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.14.2
+    hooks:
+      - id: ruff-check
+        args: [--fix, --exit-non-zero-on-fix]
+
+  # CMake. The hook's own default is `-i` (format in place); --safe adds the
+  # sanity check that reparses gersemi's output and compares the AST against the
+  # input, for the reason .gersemirc gives.
+  #
+  # Note this hook lives in its own repository -- gersemi itself ships no
+  # .pre-commit-hooks.yaml -- and its rev tracks the gersemi version.
+  - repo: https://github.com/BlankSpruce/gersemi-pre-commit
+    rev: 0.28.0
+    hooks:
+      - id: gersemi
+        args: [-i, --safe]
+
+  # Licensing. Lints the whole project rather than the changed files, so a
+  # REUSE.toml edit that strands some OTHER file is caught at the commit that
+  # causes it. `reuse-lint-file` is the faster, weaker alternative.
+  - repo: https://github.com/fsfe/reuse-tool
+    rev: v6.2.0
+    hooks:
+      - id: reuse
+
+  # Read-only structural checks. Nothing here rewrites a file.
+  #
+  # trailing-whitespace and end-of-file-fixer are intentionally absent: the
+  # twister and Doxygen fixtures under sphinx/_extensions/_tests/fixtures/ are
+  # hand-crafted and compared byte for byte, and reStructuredText gives trailing
+  # whitespace meaning in line blocks. Both hooks would edit those files.
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: check-yaml
+      - id: check-toml
+      - id: check-merge-conflict

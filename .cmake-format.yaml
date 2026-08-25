@@ -1,0 +1,11 @@
+# Copyright (c) 2026 inovex GmbH
+#
+# SPDX-License-Identifier: Apache-2.0
+
+# cmake-lint (from the cmakelang package) has its own config discovery,
+# separate from gersemi's .gersemirc. neocmakelsp shells out to cmake-lint for
+# some of its diagnostics, so without this file it falls back to cmake-lint's
+# own 80-column, 2-space defaults instead of the 100/2 gersemi already uses.
+format:
+  line_width: 100
+  tab_size: 2

@@ -1,0 +1,45 @@
+# Copyright (c) 2026 inovex GmbH
+#
+# SPDX-License-Identifier: Apache-2.0
+
+# Rule selection deliberately mirrors upstream Zephyr's .ruff.toml, since zdocs
+# is a Zephyr module and its contributors arrive with that muscle memory.
+#
+# target-version is the OLDEST interpreter zdocs supports, not the newest it is
+# developed against: it is what stops the `UP` rules from rewriting code into
+# syntax a consumer on an older Python could not import.
+
+line-length = 100
+target-version = "py310"
+
+exclude = [
+    "doc/_build",
+    "sphinx/_extensions/_tests/roots/*/_build",
+]
+
+[lint]
+select = [
+    "B",   # flake8-bugbear
+    "E",   # pycodestyle
+    "F",   # pyflakes
+    "I",   # isort
+    "SIM", # flake8-simplify
+    "UP",  # pyupgrade
+    "W",   # pycodestyle warnings
+]
+
+ignore = [
+    "SIM108", # allow if/else blocks instead of forcing a ternary
+]
+
+[lint.per-file-ignores]
+# A Sphinx conf.py is a namespace, not a module. zdocs' shim hands its own
+# globals() to zdocs_conf.configure(), which populates them; every name that
+# call injects — external_content_contents among them — is therefore undefined
+# as far as any static analysis can tell. F821 is off here for that reason
+# alone, and the cost is real: a genuine typo in a conf.py will not be caught.
+"**/conf.py" = ["F401", "F403", "F405", "F821"]
+
+[format]
+quote-style = "preserve"
+line-ending = "lf"

@@ -1,0 +1,21 @@
+# Copyright (c) 2026 inovex GmbH
+#
+# SPDX-License-Identifier: Apache-2.0
+
+# indent 2 and line_length 100 match the existing engine sources and the Python
+# side's .ruff.toml; gersemi's own defaults are 4 and 80.
+#
+# definitions points gersemi at the engine's own cmake/ so it learns the
+# signatures of the commands zdocs defines and then calls itself -- without it,
+# add_sphinx_target/add_doxygen_target/add_docs_from_registry are formatted as
+# unknown commands and their keyword arguments lose their line structure.
+#
+# Run gersemi with --safe (a CLI-only flag; it is not accepted here). That
+# enables the sanity check which reparses gersemi's own output and verifies the
+# AST still matches the input. This is a formatter operating on the files that
+# decide where every document's sources and outputs live, so a silently reshaped
+# argument list is exactly the failure worth paying a second parse for.
+line_length: 100
+indent: 2
+definitions:
+  - cmake/

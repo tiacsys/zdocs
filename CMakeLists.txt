@@ -1,3 +1,5 @@
+# Copyright (c) 2026 inovex GmbH
+#
 # SPDX-License-Identifier: Apache-2.0
 #
 # Included by the Zephyr build system when zdocs is loaded as a module in a full
