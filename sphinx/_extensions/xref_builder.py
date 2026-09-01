@@ -69,10 +69,31 @@ class XrefBuilder(DummyBuilder):
 #:
 #: Stage 2 keeps both, and there a genuinely unknown id — a typo, a deleted
 #: need — is reported normally.
+#:
+#: `needs.external_link_outgoing` is the same defect with one more hop. It fires
+#: for a link whose SOURCE is itself an imported need: the peer that defined it
+#: published its needs.json early enough to be imported, but the peer that its
+#: link points AT did not. Whether it fires at all therefore depends on the
+#: order stage 1 happened to build in, which is exactly the property that makes
+#: it useless as a signal here.
+#:
+#: `sn_schema_warning.network_missing_target` is sphinx-needs' schema layer
+#: reaching the same conclusion from the other side: it walks each need's link
+#: network and reports a link whose target is not in the build. On a cold stage 1
+#: that is every cross-document link, for the gating reason above.
+#:
+#: Scoped to that ONE rule, not to `sn_schema_warning` as a whole, and the
+#: distinction is load-bearing: `network_local_fail` — a link that resolves to a
+#: need of the WRONG type, which is what a `*-links-network` schema exists to
+#: catch — needs its target PRESENT in order to fire at all, so it is never a
+#: casualty of the gating and must keep reporting in both stages. Nor is
+#: `sn_schema_violation.*` (error severity) suppressed.
 _EXPECTED_STAGE_ONE_WARNINGS = [
     "intersphinx.external",
     "needs.link_outgoing",
     "needs.link_ref",
+    "needs.external_link_outgoing",
+    "sn_schema_warning.network_missing_target",
 ]
 
 
