@@ -7,7 +7,8 @@
 
 ::
 
-    .. latexinclude:: ../_glossary_terms.rst
+    .. latexinclude:: ../_glossary_terms.rst   # relative to the AUTHORED file
+    .. latexinclude:: /_glossary_terms.rst     # relative to the SOURCE TREE
 
 A printed document carries no hyperlinks, so anything an HTML reader would reach
 by following a link has to travel with the PDF instead: a shared glossary, a
@@ -30,6 +31,22 @@ The authored location is reconstructed from Sphinx's own two facts: ``confdir``
 is the document's authored directory (cmake passes it as ``-c``), and ``docname``
 is the including file's path within the document. Together they give the file the
 author was looking at when they counted the ``..``.
+
+**A leading ``/`` means relative to the source tree instead**, exactly as it does
+for Sphinx's own ``include`` directive ("interprets absolute paths correctly,
+i.e. relative to source directory"). The same spelling then works from both
+directives and from any depth, which is the point: an authored-relative path
+encodes how far the including file sits below the shared file, so moving a
+document from ``doc/<id>/`` to ``doc/<group>/<id>/`` silently changes what
+``../`` means and turns a working glossary into a build failure. A source-tree
+path says where the file IS, not how far away the author happened to be.
+
+That spelling requires the shared file to be present in the source tree, which
+it is not by default -- ``external_content`` copies only the document's own
+folder. A consumer that wants it adds it to ``external_content_contents`` (and
+to ``exclude_patterns``, since an include fragment is not a document). Both
+spellings are supported and neither is deprecated: the authored-relative one
+remains correct for a file that is deliberately NOT copied into the build.
 """
 
 from __future__ import annotations
@@ -61,11 +78,31 @@ class LatexIncludeDirective(Directive):
         if env.app.builder.format != "latex":
             return []
 
-        # The directory this file lives in AS AUTHORED. `docname` is posix-style
-        # and relative to the source tree, so its dirname is the same relative
-        # offset inside confdir -- which is where the author wrote it.
-        authored_dir = Path(env.app.confdir) / posixpath.dirname(env.docname)
-        include_path = (authored_dir / self.arguments[0]).resolve()
+        argument = self.arguments[0]
+
+        if argument.startswith("/"):
+            # Source-tree-relative, matching sphinx.directives.other.Include's
+            # own handling of an absolute path. Depth-independent: the same
+            # spelling resolves identically from every document, however deeply
+            # it is nested, so moving a document cannot change what it means.
+            base_dir = Path(env.srcdir)
+            include_path = (base_dir / argument.lstrip("/")).resolve()
+            base_note = (
+                f"resolved against the SOURCE TREE {base_dir} (leading '/'). "
+                f"The file has to be copied into the build -- see "
+                f"external_content_contents -- for this spelling to work."
+            )
+        else:
+            # The directory this file lives in AS AUTHORED. `docname` is
+            # posix-style and relative to the source tree, so its dirname is the
+            # same relative offset inside confdir -- which is where the author
+            # wrote it.
+            base_dir = Path(env.app.confdir) / posixpath.dirname(env.docname)
+            include_path = (base_dir / argument).resolve()
+            base_note = (
+                f"resolved against the AUTHORED directory {base_dir}, not the "
+                f"generated source tree the build parses from."
+            )
 
         if not include_path.is_file():
             # Loud, at build time, naming the resolved path -- rather than a
@@ -73,10 +110,9 @@ class LatexIncludeDirective(Directive):
             # the glossary out of a signed-off PDF without anyone noticing.
             raise ExtensionError(
                 f"latexinclude: no such file: {include_path}\n"
-                f"  directive:  .. latexinclude:: {self.arguments[0]}\n"
+                f"  directive:  .. latexinclude:: {argument}\n"
                 f"  in:         {env.docname}\n"
-                f"  resolved against the AUTHORED directory {authored_dir}, not "
-                f"the generated source tree the build parses from."
+                f"  {base_note}"
             )
 
         env.note_dependency(str(include_path))
