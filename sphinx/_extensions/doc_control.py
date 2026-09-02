@@ -63,22 +63,28 @@ class DocCtrlDirective(Directive):
 
         return self._render(data)
 
-    def _matches_docname(self, document_id, docname):
-        # customize this logic
-        return document_id == docname.split("/")[-1]
-
     def _determine_doc_title(self):
-
-        doctree = self.state.document
-
-        title_node = doctree.next_node(nodes.title)
-        title = title_node.astext() if title_node else "<no title>"
-
-        return title
+        # The controlled DOCUMENT's title, not whatever heading (or admonition
+        # generated title, or nothing at all) happens to precede the directive
+        # in the fragment it sits in -- see the brief's decision 1. `project`
+        # is available at parse time (no doctree-resolved deferral needed) and
+        # is already this document's title everywhere else (html_title, the
+        # LaTeX title page), so reading it here can't disagree with those.
+        env = self.state.document.settings.env
+        return env.config.project
 
     def _extract_document_id(self):
+        # The document's registry id (decision 2), plumbed through as the
+        # `zdocs_doc_id` config value by zdocs_conf.configure(). Empty when
+        # this extension is used standalone (no zdocs_conf) -- the unit test
+        # roots are exactly that case -- so fall back to the historical
+        # behaviour (decision 3): the fragment's own docname basename. Do NOT
+        # raise if this fallback looks wrong for a given document: a directive
+        # error is a docutils system message, which yields a green build with
+        # the entire control table silently missing -- worse than a merely
+        # imprecise id.
         env = self.state.document.settings.env
-        return posixpath.basename(env.docname)
+        return env.config.zdocs_doc_id or posixpath.basename(env.docname)
 
     def _validate(self, opts):
 
@@ -362,6 +368,12 @@ def setup(app):
     # `signature_section = "top"`) — "none" (default), "top" or "bottom".
     # PDF/LaTeX only; see _insert_signature_section.
     app.add_config_value("signature_section", "none", "env")
+
+    # The document's registry id (decision 2). zdocs_conf.configure() sets
+    # this from the `doc_id` it already computes; a standalone document (no
+    # zdocs_conf) leaves it at its default "", which _extract_document_id()
+    # treats as "fall back to the docname basename" -- see decision 3.
+    app.add_config_value("zdocs_doc_id", "", "env")
 
     # Release stage gate for `.. ifconfig:: releaselevel not in (...)` blocks.
     # Set as a plain variable in conf.py (see conf_common.configure()) — must

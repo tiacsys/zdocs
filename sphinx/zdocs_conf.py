@@ -260,6 +260,12 @@ def configure(
         {
             # -- Project information ----------------------------------------
             "project": project,
+            # The document's registry id, exposed to doc_control (which has
+            # no other engine-side way to learn it) so its `Document Id`
+            # field agrees with the id you type at `docctl author <id>` and
+            # with the LaTeX running header above, instead of guessing from
+            # whatever fragment the directive happens to sit in.
+            "zdocs_doc_id": doc_id,
             "author": author or project,
             "copyright": f"{copyright_year}, {holder}",
             "version": version,
