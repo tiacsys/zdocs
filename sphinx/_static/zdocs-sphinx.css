@@ -105,3 +105,60 @@
 .wy-nav-side .wy-menu-vertical details.reference-group-details ul {
     margin: 0;
 }
+
+/* ---------------------------------------------------------------------------
+ * Content column width.
+ *
+ * sphinx_rtd_theme 3.1.0 sets `.wy-nav-content{...max-width:800px...}`. That
+ * 800px was a readability choice, not an arbitrary one — the text column
+ * inside it comes out around 85 characters per line, inside the 60-90 range
+ * prose wants — but it caps the column at that width on every screen, wasting
+ * hundreds of pixels of available width on anything wider than a laptop. The
+ * theme's other two `.wy-nav-content` rules live in media queries and only
+ * set `padding` / `margin`+`background`, never `max-width`, so this plain
+ * override is enough on its own and needs no `!important`: it wins on load
+ * order at equal specificity, this stylesheet being loaded after the theme's.
+ *
+ * 1200px is a deliberate trade of some of that readability for room to lay
+ * out wide tables (see the table rule below) — not a hybrid of prose and
+ * wide-block widths, and not a per-element cap. One number for everything.
+ *
+ * Because this stylesheet loads before any consumer stylesheet
+ * (`html_css_files = ["zdocs-sphinx.css"] + css_files`), a project that wants
+ * a different width back can override this rule at equal specificity with no
+ * engine change — no `ZDOCS_*` variable needed for the number.
+ */
+.wy-nav-content {
+    max-width: 1200px;
+}
+
+/* ---------------------------------------------------------------------------
+ * Table cells wrap.
+ *
+ * The theme forces every table cell onto one unbreakable line:
+ * `.wy-table-responsive table td,.wy-table-responsive table th{white-space:
+ * nowrap}`. Combined with the content column above, any table wider than the
+ * content must be scrolled horizontally to be read at all — most of them in a
+ * QMS-shaped docset. This overrides that selector at equal specificity, the
+ * same load-order reasoning as the width rule above.
+ *
+ * `.rst-content code` keeps its own `white-space: nowrap` in the theme, so
+ * this does not break identifiers or paths mid-token: a code span stays an
+ * unbreakable island inside a now-wrapping cell.
+ *
+ * sphinx-needs tables (`table.need…`) already compute `white-space: normal`
+ * before this change — needs ships its own override — so this rule changes
+ * nothing for them; it exists for the theme's own plain tables.
+ *
+ * `.wy-table-responsive`'s `overflow: auto` is left alone on purpose: it is
+ * the safety valve for a table that genuinely cannot fit (one long
+ * unbreakable literal, say). The goal is to stop needless scrolling, not to
+ * remove the ability to scroll.
+ *
+ * As above, a project that wants the old behaviour back can override this at
+ * equal specificity from its own stylesheet, loaded after this one.
+ */
+.wy-table-responsive table td,
+.wy-table-responsive table th {
+    white-space: normal;
+}
