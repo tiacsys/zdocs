@@ -428,9 +428,13 @@ def resolve_version(*, scope=None, project=None, repo_root=None, west=None):
     ``version`` CLI subcommand). Resolution order:
 
       1. The ``VERSION`` env var (CI / reproducible-build escape hatch) wins.
-      2. ``scope``: ``git -C <repo_root> describe --tags --match "<scope>/v*"
+      2. ``scope``: ``git -C <repo_root> describe --tags --match "<scope>/*"
          --dirty``; the leading ``"<scope>/"`` is stripped so the version
-         displays clean (``proj/v0.1-dirty`` -> ``v0.1-dirty``).
+         displays clean (``proj/0.1-dirty`` -> ``0.1-dirty``). No mandatory
+         "v" prefix on the version component — SOP-DOCCTL's release tags
+         (``<document-id>/<version>``, e.g. ``sop-docctl/1.0``, created by
+         ``docctl approve``) don't use one; a scope pattern that required
+         "v" never matched those tags and silently fell back to (4) below.
       3. ``project``: a west project name — its path is resolved via
          ``west list --format {abspath} <project>`` (run in the west topdir),
          then
@@ -456,7 +460,7 @@ def resolve_version(*, scope=None, project=None, repo_root=None, west=None):
                 ).strip()
             else:
                 described = subprocess.check_output(
-                    ["git", "describe", "--tags", "--match", f"{scope}/v*", "--dirty"],
+                    ["git", "describe", "--tags", "--match", f"{scope}/*", "--dirty"],
                     cwd=repo_root,
                     text=True,
                     stderr=subprocess.DEVNULL,
