@@ -271,17 +271,27 @@ def _pick_doc_control_data(app):
     return next(iter(all_data.values()))
 
 
-def _find_first_section(node):
-    """Depth-first search for the first ``nodes.section`` anywhere under
-    ``node``. The LaTeX builder's assembled tree wraps a toctree-included
-    document's content in Sphinx-internal container nodes (``compound`` >
-    ``start_of_file`` > ...) before its actual sections appear, so "the
-    first section" isn't necessarily a direct child of the document root.
+def _find_doc_control_table(node):
+    """Depth-first search for the rendered ``.. doc_control::`` table (the
+    ``doc-ctrl``-classed table ``DocCtrlDirective._render`` builds) anywhere
+    under ``node``.
+
+    Used instead of "the first section" (a former, broken heuristic — see
+    git history) to place the "top" signature block: docutils wraps a
+    document's OWN title into a ``nodes.section`` that also wraps everything
+    below it, including its own ``.. doc_control::`` table when the
+    directive lives directly in the master document (e.g. index.rst) rather
+    than in a separately toctree-included file. "The first ``nodes.section``
+    anywhere" then finds THAT wrapping section — even though its own title
+    was already hoisted onto the PDF title page and it renders as plain body
+    content — and inserts the signature block as its preceding sibling, i.e.
+    before EVERYTHING including the doc_control table itself, not after it.
+    Anchoring on the table node directly sidesteps this entirely.
     """
     for child in node.children:
-        if isinstance(child, nodes.section):
+        if isinstance(child, nodes.table) and "doc-ctrl" in child.get("classes", []):
             return child
-        found = _find_first_section(child)
+        found = _find_doc_control_table(child)
         if found is not None:
             return found
     return None
@@ -307,13 +317,12 @@ def _insert_signature_section(app, doctree, docname):
     if mode == "bottom":
         doctree.append(raw)
     else:
-        # "top": right after the doc_control table (and any other
-        # un-sectioned front matter), before the first real content section
-        # — wherever in the (possibly nested) tree that section actually is.
-        section = _find_first_section(doctree)
-        if section is not None and section.parent is not None:
-            parent = section.parent
-            parent.insert(parent.index(section), raw)
+        # "top": right after the doc_control table itself, wherever in the
+        # (possibly nested) tree that table actually is.
+        table = _find_doc_control_table(doctree)
+        if table is not None and table.parent is not None:
+            parent = table.parent
+            parent.insert(parent.index(table) + 1, raw)
         else:
             doctree.append(raw)
 
