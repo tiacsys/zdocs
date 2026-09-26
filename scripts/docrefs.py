@@ -62,6 +62,20 @@ import yaml
 DOXYGEN_TAGFILE = "doxygen.tag"
 
 
+def _crossref(meta):
+    """Whether a document takes part in cross-document linking.
+
+    ``crossref: false`` keeps a document's build, deploy tree and navigation
+    entry but removes it from the link graph in both directions: no peer gets
+    an intersphinx, doxylink, needs or ``TAGFILES`` entry for it, and it gets
+    none for its peers. For a large reference build that documents a superset
+    of its peers' symbols (e.g. a project's full API beside a scoped subset),
+    importing each other's tag files makes each Doxygen project defer the
+    shared symbols to the other, so neither generates their pages.
+    """
+    return meta.get("crossref", True)
+
+
 def _registry(registry):
     """Load, parse and validate the registry YAML.
 
@@ -163,6 +177,13 @@ def _validate(data):
         if kind not in _KINDS:
             raise ValueError(
                 f"docrefs: document '{doc_id}' has kind '{kind}', which is not one of {_KINDS}"
+            )
+        if not isinstance(meta.get("crossref", True), bool):
+            # A quoted "false" is a truthy string: accepting it would leave
+            # the document linked while the registry says it is not.
+            raise ValueError(
+                f"docrefs: document '{doc_id}' has crossref "
+                f"'{meta['crossref']}', which is not a boolean (true/false)"
             )
         if (
             kind in ("external", "sphinx-external", "doxygen-external")
@@ -721,8 +742,9 @@ def load(this_doc=None, registry=None):
     needs_external_needs = []
     doxylink = {}
 
+    this_crossref = _crossref(documents.get(this_doc, {}))
     for doc_id, meta in documents.items():
-        if doc_id == this_doc:
+        if doc_id == this_doc or not (this_crossref and _crossref(meta)):
             continue
 
         kind = meta.get("kind", "sphinx")
@@ -865,8 +887,10 @@ def tagfiles(this_doc, deploy_dir, registry=None):
     this_html = (deploy / this_path).as_posix()
 
     entries = []
+    if not _crossref(documents.get(this_doc, {})):
+        return ""
     for doc_id, meta in documents.items():
-        if doc_id == this_doc:
+        if doc_id == this_doc or not _crossref(meta):
             continue
         kind = meta.get("kind")
         if kind == "doxygen":

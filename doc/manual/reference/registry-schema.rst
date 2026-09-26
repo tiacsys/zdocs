@@ -182,6 +182,17 @@ Each entry in ``documents:``, keyed by its id:
    Downloaded at build time and stored locally as ``doxygen.tag``, whatever
    the remote file is actually called.
 
+``crossref``
+   Boolean, default ``true``. ``false`` takes the document out of the
+   cross-reference graph in both directions: no peer gets an intersphinx,
+   doxylink, external-needs or Doxygen ``TAGFILES`` entry for it, and it gets
+   none for its peers. It is still built, deployed and listed in the
+   navigation. Meant for a large reference build that documents a superset of
+   its peers' symbols — a project's full API beside a scoped subset. Doxygen
+   projects that import each other's tag files leave shared symbols to the
+   other project, so neither generates their pages. A quoted ``"false"`` is a
+   configure-time error rather than a truthy string.
+
 ``needs``
    Opt-in sub-block; presence is what makes this document importable as
    external needs by every peer. Two shapes:
