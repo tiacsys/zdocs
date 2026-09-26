@@ -200,6 +200,29 @@ def check_deploy_links(deploy: Path, base_url: str) -> list[str]:
     return findings
 
 
+def _accepted_findings(entries) -> dict[str, str] | None:
+    """The registry's ``doc_check_accepted:`` list as ``{finding: reason}``.
+
+    Each entry names one finding by its exact printed text, never a pattern,
+    so an acceptance cannot swallow a new, different finding. ``reason`` is
+    required: an exception nobody can explain is one nobody can retire.
+    Returns ``None`` (after printing why) for a malformed list.
+    """
+    accepted: dict[str, str] = {}
+    for i, entry in enumerate(entries or []):
+        finding = entry.get("finding") if isinstance(entry, dict) else None
+        reason = entry.get("reason") if isinstance(entry, dict) else None
+        if not (isinstance(finding, str) and finding and isinstance(reason, str) and reason):
+            print(
+                f"doccheck: doc_check_accepted[{i}] needs a non-empty 'finding' "
+                "and 'reason'",
+                file=sys.stderr,
+            )
+            return None
+        accepted[finding] = reason
+    return accepted
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--registry", type=Path, required=True)
@@ -223,6 +246,10 @@ def main() -> int:
         print(f"doccheck: no deploy tree at {args.deploy}", file=sys.stderr)
         return 2
 
+    accepted = _accepted_findings(raw.get("doc_check_accepted"))
+    if accepted is None:
+        return 2
+
     groups: list[tuple[str, list[str]]] = []
     if smoke_page:
         groups.append(
@@ -231,12 +258,33 @@ def main() -> int:
     groups.append(("dead deploy links", check_deploy_links(args.deploy, base_url)))
 
     total = 0
+    matched: set[str] = set()
     for title, findings in groups:
-        if findings:
-            total += len(findings)
-            print(f"\ndoccheck: {title} ({len(findings)}):", file=sys.stderr)
-            for f in findings:
+        failing = [f for f in findings if f not in accepted]
+        matched.update(f for f in findings if f in accepted)
+        if failing:
+            total += len(failing)
+            print(f"\ndoccheck: {title} ({len(failing)}):", file=sys.stderr)
+            for f in failing:
                 print(f"  {f}", file=sys.stderr)
+
+    # Accepted findings are printed, never hidden: the build passes, but the
+    # log still says what is broken and why it was let through.
+    if matched:
+        print(f"\ndoccheck: accepted ({len(matched)}):", file=sys.stderr)
+        for f in sorted(matched):
+            print(f"  {f}\n    reason: {accepted[f]}", file=sys.stderr)
+    stale = sorted(set(accepted) - matched)
+    if stale:
+        # Not a failure — fixing the underlying problem must not break the
+        # build — but said out loud, so the list does not rot.
+        print(
+            f"\ndoccheck: accepted but no longer found ({len(stale)}) — "
+            "remove from doc_check_accepted:",
+            file=sys.stderr,
+        )
+        for f in stale:
+            print(f"  {f}", file=sys.stderr)
 
     if total:
         print(f"\ndoccheck: FAILED with {total} finding(s)", file=sys.stderr)

@@ -54,6 +54,24 @@ Top level
    or empty — see :doc:`cli`. Optional; without it, ``doc-check`` simply skips
    that one check.
 
+``doc_check_accepted``
+   Optional list of ``doccheck`` findings to let through, for defects the
+   consumer cannot fix (e.g. one inside a generated upstream API):
+
+   .. code-block:: yaml
+
+      doc_check_accepted:
+        - finding: "html/api/structfoo.html: dead link -> structfoo_1_1_0d13.html"
+          reason: "Doxygen does not generate nested anonymous struct pages"
+
+   ``finding`` is the finding's exact printed text, never a pattern, so an
+   acceptance cannot swallow a new, different finding. ``reason`` is required.
+   Accepted findings do not fail the check, but they are still printed under
+   ``accepted (N)`` with their reason. An entry that no longer matches anything
+   is printed under ``accepted but no longer found`` without failing, so fixing
+   the defect never breaks the build and the list does not rot. A malformed
+   entry is a bad invocation (exit 2).
+
 ``doxygen_xml``
    Project-scoped boolean, default off. When true, **every** ``kind: doxygen``
    document in the registry generates XML into
