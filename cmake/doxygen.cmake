@@ -325,6 +325,18 @@ function(add_doxygen_target name)
     "GENERATE_MAN = NO\n"
     "GENERATE_RTF = NO\n"
     "GENERATE_DOCBOOK = NO\n"
+    # Stage 2 parses the same inputs and reports every warning again, so
+    # stage 1's copy is pure duplication. Worse, stage 1 warns falsely: with
+    # TAGFILES cleared, every reference into a peer is "unresolved". Its
+    # warnings must therefore never fail the build either. WARNINGS alone is
+    # not enough: the WARN_IF_* switches warn independently of it.
+    "WARNINGS = NO\n"
+    "WARN_IF_UNDOCUMENTED = NO\n"
+    "WARN_IF_DOC_ERROR = NO\n"
+    "WARN_IF_INCOMPLETE_DOC = NO\n"
+    "WARN_NO_PARAMDOC = NO\n"
+    "WARN_IF_UNDOC_ENUM_VAL = NO\n"
+    "WARN_AS_ERROR = NO\n"
   )
 
   # Doxygen is invoked through run_doxygen.cmake (a `cmake -P` wrapper) so a
