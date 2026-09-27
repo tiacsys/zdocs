@@ -33,6 +33,16 @@ document's registry id, verbatim.
 # Doxygen. Requiring it here makes the failure say what it is, at configure time.
 find_package(Doxygen REQUIRED)
 
+# Stage-2 warnings that fail the build (see check_doxygen_warnings.cmake). The
+# default is the one warning that is always a defect and that nothing else
+# catches: a `\verifies` / `\satisfies` naming a requirement no `\requirement`
+# defines. Doxygen synthesizes the XML link from the UID either way, so a typo
+# is otherwise indistinguishable from a real link. A consumer may add patterns,
+# or set the list empty to gate nothing.
+if(NOT DEFINED ZDOCS_DOXYGEN_WARN_FAIL_PATTERNS)
+  set(ZDOCS_DOXYGEN_WARN_FAIL_PATTERNS "Reference to unknown requirement")
+endif()
+
 #-------------------------------------------------------------------------------
 # Doxygen (standalone)
 #
@@ -203,6 +213,15 @@ function(add_doxygen_target name)
     )
   endif()
 
+  # Stage 2's warnings go to a log that check_doxygen_warnings.cmake echoes
+  # and gates; stage 1 resets it below.
+  set(DOXY_WARN_LOG ${CMAKE_CURRENT_BINARY_DIR}/${DOXY_DOC}.warnings.log)
+  file(
+    APPEND ${DOXYFILE_OUT}
+    "\n# --- WARN_LOGFILE (appended by zdocs/cmake/doxygen.cmake) ---\n"
+    "WARN_LOGFILE           = ${DOXY_WARN_LOG}\n"
+  )
+
   # -- Inter-doxygen TAGFILES (registry-driven): let this doc resolve symbols
   # documented in the other doxygen docs (e.g. testspec -> api). Appended to the
   # GENERATED doxyfile rather than substituted into each Doxyfile.in.
@@ -337,6 +356,8 @@ function(add_doxygen_target name)
     "WARN_NO_PARAMDOC = NO\n"
     "WARN_IF_UNDOC_ENUM_VAL = NO\n"
     "WARN_AS_ERROR = NO\n"
+    # Not stage 2's log: this run must neither overwrite nor feed its gate.
+    "WARN_LOGFILE =\n"
   )
 
   # Doxygen is invoked through run_doxygen.cmake (a `cmake -P` wrapper) so a
@@ -392,7 +413,15 @@ function(add_doxygen_target name)
   add_dependencies(doc-tags ${DOXY_DOC}-tag)
   add_dependencies(doc-index ${DOXY_DOC}-tag)
 
-  add_doc_target(${DOXY_DOC} COMMAND ${DOX_STAGE2_CMD} COMMENT "Running Doxygen for ${DOXY_DOC}...")
+  add_doc_target(
+    ${DOXY_DOC}
+    COMMAND ${DOX_STAGE2_CMD}
+    COMMAND
+      ${CMAKE_COMMAND} -DDOC_ID=${DOXY_DOC} -DLOGFILE=${DOXY_WARN_LOG}
+      "-DPATTERNS=${ZDOCS_DOXYGEN_WARN_FAIL_PATTERNS}"
+      -P ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/check_doxygen_warnings.cmake
+    COMMENT "Running Doxygen for ${DOXY_DOC}..."
+  )
 
   # Stage 2 waits for all stage-1 tags so TAGFILES cross references resolve.
   add_dependencies(${DOXY_DOC} doc-index)
