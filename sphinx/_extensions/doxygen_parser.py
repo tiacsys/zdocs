@@ -371,14 +371,22 @@ def parse_memberdef(
         # the recommended way to write a test case. `build_procedure_need_rst`
         # already searched with `.//` for its see-also, so this also removes an
         # inconsistency between the two builders.
+        #
+        # The value is read with itertext(), not .text: once any tag file in
+        # TAGFILES declares a requirement of that name (a `doxygen_tag:` needs
+        # tag, say), Doxygen autolinks an identifier-shaped UID such as
+        # DUTY_001 inside the xrefitem, `<para><ref ...>DUTY_001</ref></para>`,
+        # and .text is then empty. Hyphenated UIDs are never autolinked, which
+        # is why this stayed hidden.
         for xrefsect in dd.iter("xrefsect"):
             xid = xrefsect.get("id", "")
-            xdesc = (xrefsect.findtext("xrefdescription/para") or "").strip()
+            xpara = xrefsect.find("xrefdescription/para")
+            xdesc = "".join(xpara.itertext()).strip() if xpara is not None else ""
             if "testids" in xid:
                 test_id = xdesc
             elif "reqrefs" in xid:
                 for _p in xrefsect.findall("xrefdescription/para"):
-                    _rid = (_p.text or "").strip()
+                    _rid = "".join(_p.itertext()).strip()
                     if _rid:
                         req_ids.append(_rid)
             elif "test_active" in xid:

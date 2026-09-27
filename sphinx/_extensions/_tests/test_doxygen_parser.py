@@ -236,6 +236,27 @@ def test_parse_memberdef_extracts_reqrefs():
     assert "zep-srs-20-1" in info["req_ids"]
 
 
+def test_parse_memberdef_reads_autolinked_xrefitem_values():
+    # With a needs tag in TAGFILES, Doxygen autolinks an identifier-shaped UID
+    # inside the xrefitem; the value must survive the <ref> wrapper.
+    xref = (
+        "<xrefsect id='testids_1testids'>"
+        "<xreftitle>Test ID</xreftitle>"
+        "<xrefdescription><para><ref refid='x' kindref='member'>TC_ONE</ref> "
+        "</para></xrefdescription>"
+        "</xrefsect>"
+        "<xrefsect id='reqrefs_1reqrefs'>"
+        "<xreftitle>Requirement Refs</xreftitle>"
+        "<xrefdescription><para><ref refid='requirements_1DUTY_001' "
+        "kindref='member'>DUTY_001</ref> </para></xrefdescription>"
+        "</xrefsect>"
+    )
+    md = _make_memberdef(extra_xrefsects=xref)
+    info = dp.parse_memberdef(md, "group__queue__api", "/testspec/html", "/api/html")
+    assert info["test_id"] == "TC_ONE"
+    assert info["req_ids"] == ["DUTY_001"]
+
+
 def test_parse_memberdef_extracts_native_verifies():
     md = _make_memberdef(member_extra=_verifies("ZEP-SRS-20-6", "ZEP-SRS-20-7"))
     info = dp.parse_memberdef(md, "group__queue__api", "/testspec/html", "/api/html")
