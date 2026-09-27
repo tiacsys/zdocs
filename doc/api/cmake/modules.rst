@@ -19,3 +19,5 @@ surface — it is the bracket comments themselves, rendered.
 .. cmake-module:: /cmake/download_external_tag.cmake
 
 .. cmake-module:: /cmake/run_doxygen.cmake
+
+.. cmake-module:: /cmake/check_doxygen_warnings.cmake

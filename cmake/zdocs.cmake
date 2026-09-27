@@ -65,6 +65,11 @@ list(APPEND CMAKE_MODULE_PATH ${ZDOCS_CMAKE_DIR})
 #   ZDOCS_PROJECT_LOGO       (optional) logo for Doxygen pages.
 #   ZDOCS_DOXYGEN_EXTRA_CSS  (optional) brand stylesheets, appended after the
 #                            theme so they win.
+#   ZDOCS_DOXYGEN_WARN_FAIL_PATTERNS
+#                            (optional) regexes; a stage-2 Doxygen warning
+#                            matching one fails that document's build. Defaults
+#                            to Doxygen's "Reference to unknown requirement";
+#                            set it empty to gate nothing.
 #   ZDOCS_DOC_BASE_URL       (optional) base URL the deploy tree is served under,
 #                            used for absolute cross-document need links.
 #   ZDOCS_SPHINX_EXTRA_ENV   (optional) extra VAR=value entries passed to every

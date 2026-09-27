@@ -59,6 +59,16 @@ layout, not toggled from outside it.
    A list of stylesheet paths, appended to Doxygen's
    ``HTML_EXTRA_STYLESHEET`` after the engine's own theme — so your rules win.
 
+``ZDOCS_DOXYGEN_WARN_FAIL_PATTERNS``
+   A list of regular expressions. After each Doxygen document's stage-2 build,
+   a warning line matching any of them fails that document's target; the full
+   warning log is still printed either way. Defaults to
+   ``Reference to unknown requirement`` — a ``\verifies`` or ``\satisfies``
+   naming a UID that no ``\requirement`` defines, which the XML cannot reveal
+   (Doxygen synthesizes the link from the UID regardless). Set it to an empty
+   string to gate nothing. Stage 1 is never gated: it runs with ``TAGFILES``
+   cleared, so its cross-document warnings are false.
+
 ``ZDOCS_SPHINX_EXTRA_ENV``
    A list of ``VAR=value`` strings, spliced verbatim into every
    ``sphinx-build`` invocation's environment, for a ``conf.py`` that needs
