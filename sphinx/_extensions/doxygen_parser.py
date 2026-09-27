@@ -5,10 +5,12 @@
 """Doxygen XML parsing — no Sphinx dependency."""
 import xml.etree.ElementTree as ET
 from pathlib import Path
-from typing import TypedDict
+from typing import NamedTuple, TypedDict
 
 __all__ = [
     "MemberInfo",
+    "RefLinks",
+    "ref_to_rst",
     "elem_text",
     "para_text",
     "list_to_rst_lines",
@@ -35,6 +37,41 @@ class MemberInfo(TypedDict):
     body_sections: list[list[str]]
 
 
+class RefLinks(NamedTuple):
+    """Where a <ref> in Doxygen prose points, as HTML directory URLs.
+
+    ``api`` for a symbol Doxygen resolved through a tag file (``external=``) —
+    the API document the test specification references; ``local`` for one
+    documented in the parsed project itself, such as a shared test procedure.
+    An empty string leaves that kind unlinked.
+    """
+
+    api: str = ""
+    local: str = ""
+
+
+def ref_to_rst(ref: ET.Element, links: RefLinks | None) -> str | None:
+    """A <ref> as an RST hyperlink into the Doxygen HTML, or None if it has none.
+
+    Doxygen's refid is ``<compound>_1<anchor>`` for a member and the bare
+    compound for a page or group. The caller decides what an unlinked ref
+    becomes.
+    """
+    name = (ref.text or "").strip()
+    refid = ref.get("refid", "")
+    if not (links and name and refid):
+        return None
+    base = links.api if ref.get("external") else links.local
+    if not base:
+        return None
+    if "_1" in refid:
+        idx = refid.rfind("_1")
+        url = f"{base}/{refid[:idx]}.html#{refid[idx + 2:]}"
+    else:
+        url = f"{base}/{refid}.html"
+    return f"`{name} <{url}>`__"
+
+
 def elem_text(elem: ET.Element | None) -> str:
     """Walk the element tree collecting all text nodes (.text and .tail),
     join them, then normalise any runs of whitespace down to single spaces."""
@@ -51,8 +88,15 @@ def elem_text(elem: ET.Element | None) -> str:
     return " ".join(" ".join(buf).split())
 
 
-def para_text(para: ET.Element | None) -> str:
-    """Extract inline text from a <para>, rendering code/ref as plain text."""
+def para_text(para: ET.Element | None, links: RefLinks | None = None) -> str:
+    """Extract inline text from a <para>, rendering code/ref as plain text.
+
+    With ``links``, a symbol reference becomes a hyperlink into the Doxygen HTML
+    (see `ref_to_rst`) — the same target the see-also line links to. Without,
+    a member reference becomes a ``:c:func:`` role, which resolves only where a
+    C domain defines the symbol; in the test documents nothing does, so it
+    renders as unlinked code, silently. The need title must stay plain text
+    (it is not parsed), so a caller building one passes no ``links``."""
     if para is None:
         return ""
     parts = []
@@ -63,7 +107,9 @@ def para_text(para: ET.Element | None) -> str:
             pass  # skip structural children
         elif child.tag == "computeroutput":
             ref = child.find("ref[@kindref='member']")
-            if ref is not None:
+            if ref is not None and (link := ref_to_rst(ref, links)):
+                parts.append(link)
+            elif ref is not None:
                 parts.append(f":c:func:`{(ref.text or '').rstrip('()').strip()}`")
             else:
                 parts.append(f"``{elem_text(child)}``")
@@ -72,7 +118,9 @@ def para_text(para: ET.Element | None) -> str:
         elif child.tag == "ref":
             kindref = child.get("kindref", "")
             t = (child.text or "").strip()
-            if kindref == "member" and t:
+            if link := ref_to_rst(child, links):
+                parts.append(link)
+            elif kindref == "member" and t:
                 parts.append(f":c:func:`{t.rstrip('()').strip()}`")
             else:
                 parts.append(elem_text(child))
@@ -80,10 +128,14 @@ def para_text(para: ET.Element | None) -> str:
             parts.append(elem_text(child))
         if child.tail:
             parts.append(child.tail)
-    return " ".join(" ".join(parts).split())
+    # Joined as written, then whitespace runs collapsed. Joining with a space
+    # put one before the punctuation that follows a reference ("k_fifo_put() .").
+    return " ".join("".join(parts).split())
 
 
-def list_to_rst_lines(listelem: ET.Element, marker: str) -> list[str]:
+def list_to_rst_lines(
+    listelem: ET.Element, marker: str, links: RefLinks | None = None
+) -> list[str]:
     """Convert <orderedlist> or <itemizedlist> children to RST list lines.
 
     Each item's paragraphs go through `para_rst_lines`, so a list nested inside a
@@ -99,7 +151,7 @@ def list_to_rst_lines(listelem: ET.Element, marker: str) -> list[str]:
     for item in listelem.findall("listitem"):
         item_lines: list[str] = []
         for para in item.findall("para"):
-            block = para_rst_lines(para)
+            block = para_rst_lines(para, links)
             if block:
                 if item_lines:
                     item_lines.append("")
@@ -112,7 +164,7 @@ def list_to_rst_lines(listelem: ET.Element, marker: str) -> list[str]:
     return lines
 
 
-def para_rst_lines(para: ET.Element | None) -> list[str]:
+def para_rst_lines(para: ET.Element | None, links: RefLinks | None = None) -> list[str]:
     """One <para> as RST lines: its own prose first, then any lists it contains.
 
     `para_text` deliberately skips `orderedlist`/`itemizedlist` (and
@@ -130,14 +182,14 @@ def para_rst_lines(para: ET.Element | None) -> list[str]:
     if para is None:
         return []
     lines: list[str] = []
-    text = para_text(para).strip()
+    text = para_text(para, links).strip()
     if text:
         lines.append(text)
     for child in para:
         if child.tag == "orderedlist":
-            sub = list_to_rst_lines(child, "#.")
+            sub = list_to_rst_lines(child, "#.", links)
         elif child.tag == "itemizedlist":
-            sub = list_to_rst_lines(child, "-")
+            sub = list_to_rst_lines(child, "-", links)
         else:
             continue
         if not sub:
@@ -151,7 +203,7 @@ def para_rst_lines(para: ET.Element | None) -> list[str]:
     return lines
 
 
-def section_to_rst(simplesect: ET.Element) -> list[str]:
+def section_to_rst(simplesect: ET.Element, links: RefLinks | None = None) -> list[str]:
     """Render a <simplesect kind="par"> (Arrange/Act/Assert) into RST lines.
     Emits a .. rubric:: for the title, then renders each <para> child as an
     ordered list, unordered list, or plain prose paragraph."""
@@ -170,7 +222,7 @@ def section_to_rst(simplesect: ET.Element) -> list[str]:
     for child in simplesect:
         if child.tag != "para":
             continue
-        block = para_rst_lines(child)
+        block = para_rst_lines(child, links)
         if block:
             lines.extend(block)
             lines.append("")
@@ -180,25 +232,21 @@ def section_to_rst(simplesect: ET.Element) -> list[str]:
     return lines
 
 
-def see_to_rst(simplesect_see: ET.Element, api_html_dir: str) -> str:
+def see_to_rst(simplesect_see: ET.Element, api_html_dir: str, testspec_html_dir: str = "") -> str:
     """Render a <simplesect kind="see"> into a 'See also:' RST line.
-    Each <ref> becomes a hyperlink (safety-API refs), a :c:func: role
-    (member refs), or a plain code span, depending on its attributes."""
+    Each <ref> becomes a hyperlink (see `ref_to_rst`), a :c:func: role
+    (unlinked member refs), or a plain code span, depending on its attributes."""
+    links = RefLinks(api=api_html_dir, local=testspec_html_dir)
     refs: list[str] = []
     for ref in simplesect_see.findall("para/ref"):
         name = (ref.text or "").strip()
         if not name:
             continue
         refid = ref.get("refid", "")
-        external = ref.get("external", "")
         kindref = ref.get("kindref", "")
         if refid and "_1" in refid:
-            idx = refid.rfind("_1")
-            compound = refid[:idx]
-            anchor = refid[idx + 2:]
-            if external:
-                url = f"{api_html_dir}/{compound}.html#{anchor}"
-                refs.append(f"`{name} <{url}>`__")
+            if link := ref_to_rst(ref, links):
+                refs.append(link)
             elif kindref == "member":
                 func_name = name.rstrip("()").strip()
                 refs.append(f":c:func:`{func_name}`")
@@ -211,7 +259,9 @@ def see_to_rst(simplesect_see: ET.Element, api_html_dir: str) -> str:
     return ""
 
 
-def extract_params(detaileddesc: ET.Element) -> list[tuple[str, str]]:
+def extract_params(
+    detaileddesc: ET.Element, links: RefLinks | None = None
+) -> list[tuple[str, str]]:
     """Walk all <parameterlist kind="param"> elements in the detailed description,
     collect each parameter's name(s) and prose description, and return them as
     (name, description) pairs. Multiple names per item are joined with ', '."""
@@ -224,7 +274,7 @@ def extract_params(detaileddesc: ET.Element) -> list[tuple[str, str]]:
             ]
             name = ", ".join(n for n in names if n)
             desc = " ".join(
-                para_text(p)
+                para_text(p, links)
                 for p in item.findall(".//parameterdescription/para")
             ).strip()
             if name:
@@ -233,7 +283,7 @@ def extract_params(detaileddesc: ET.Element) -> list[tuple[str, str]]:
 
 
 
-def detail_rst_lines(dd: ET.Element | None) -> list[str]:
+def detail_rst_lines(dd: ET.Element | None, links: RefLinks | None = None) -> list[str]:
     """A <detaileddescription>'s own prose as RST LINES — paragraphs and lists.
 
     Shared by member-level (`@details` on a ZTEST/function) and compound-level
@@ -262,7 +312,7 @@ def detail_rst_lines(dd: ET.Element | None) -> list[str]:
         return []
     lines: list[str] = []
     for para in dd.findall("para"):
-        block = para_rst_lines(para)
+        block = para_rst_lines(para, links)
         if block:
             if lines:
                 lines.append("")
@@ -294,7 +344,8 @@ def parse_memberdef(
     anchor = member_id[len(prefix):] if member_id.startswith(prefix) else member_id
     doxygen_url = f"{testspec_html_dir}/{compound_id}.html#{anchor}"
 
-    brief = para_text(memberdef.find("briefdescription/para"))
+    links = RefLinks(api=api_html_dir, local=testspec_html_dir)
+    brief = para_text(memberdef.find("briefdescription/para"), links)
 
     dd = memberdef.find("detaileddescription")
     test_id = ""
@@ -334,10 +385,10 @@ def parse_memberdef(
                 status = "active"
             elif "test_obsolete" in xid:
                 status = "obsolete"
-        detail_lines = detail_rst_lines(dd)
+        detail_lines = detail_rst_lines(dd, links)
         see_sect = dd.find(".//simplesect[@kind='see']")
         if see_sect is not None:
-            see_rst = see_to_rst(see_sect, api_html_dir)
+            see_rst = see_to_rst(see_sect, api_html_dir, testspec_html_dir)
 
     # Doxygen's native `\verifies` (1.16+): a <verifies> child of the memberdef
     # itself, not of the description, with the UID only in each requirement's
@@ -357,7 +408,7 @@ def parse_memberdef(
     body_sections: list[list[str]] = []
     if ibd is not None:
         for ss in ibd.findall("para/simplesect[@kind='par']"):
-            section_lines = section_to_rst(ss)
+            section_lines = section_to_rst(ss, links)
             if section_lines:
                 body_sections.append(section_lines)
 
