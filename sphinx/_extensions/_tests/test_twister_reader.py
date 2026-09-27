@@ -78,20 +78,26 @@ def test_parse_results_strips_test_prefix():
 # ---------------------------------------------------------------------------
 
 
-def test_load_spec_lookup_keys_are_functions():
+def test_load_spec_lookup_finds_by_suite_and_function():
     lookup = tw.load_spec_lookup(NEEDS_JSON)
-    assert "test_queue_put" in lookup
-    assert "test_queue_get" in lookup
+    assert lookup.find("kernel.queue", "test_queue_put")["id"] == "TSPEC-QUEUE-API-001"
+    assert lookup.find("kernel.queue", "test_queue_get")["id"] == "TSPEC-QUEUE-API-002"
+
+
+def test_load_spec_lookup_accepts_stripped_test_prefix():
+    # twister strips ztest's `test_` prefix from the function it reports
+    lookup = tw.load_spec_lookup(NEEDS_JSON)
+    assert lookup.find("kernel.queue", "queue_put")["id"] == "TSPEC-QUEUE-API-001"
 
 
 def test_load_spec_lookup_req_ids():
     lookup = tw.load_spec_lookup(NEEDS_JSON)
-    assert lookup["test_queue_put"]["req_ids"] == ["zep-srs-20-1"]
+    assert lookup.find("kernel.queue", "queue_put")["req_ids"] == ["zep-srs-20-1"]
 
 
 def test_load_spec_lookup_suite_title():
     lookup = tw.load_spec_lookup(NEEDS_JSON)
-    assert lookup["test_queue_put"]["suite_title"] == "Queue API Tests"
+    assert lookup.find("kernel.queue", "queue_put")["suite_title"] == "Queue API Tests"
 
 
 # ---------------------------------------------------------------------------

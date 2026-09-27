@@ -206,24 +206,38 @@ def _group_results(results):
     return suite_order, func_order, grouped
 
 
+def _spec_info(spec_lookup, suite, fn):
+    """The spec test case for a result's (suite, fn), or None — warns when none or several."""
+    hits = spec_lookup.candidates(suite, fn)
+    if len(hits) == 1:
+        return hits[0]
+    if not hits:
+        logger.warning(f"testreport: '{suite}.{fn}' not in spec needs.json — skipped")
+    else:
+        ids = ", ".join(sorted(h["id"] for h in hits))
+        logger.warning(
+            f"testreport: '{suite}.{fn}' is ambiguous in spec needs.json ({ids}) — skipped"
+        )
+    return None
+
+
 def _build_results_rst(suite_order, func_order, grouped, spec_lookup, need_names=None):
     """Build RST lines for all test_result needs, grouped into one section per suite."""
     lines = []
     for suite in suite_order:
         suite_title = next(
             (
-                (spec_lookup.get(fn) or spec_lookup.get("test_" + fn) or {}).get("suite_title")
+                info["suite_title"]
                 for fn in func_order[suite]
-                if (spec_lookup.get(fn) or spec_lookup.get("test_" + fn) or {}).get("suite_title")
+                if (info := spec_lookup.find(suite, fn)) and info.get("suite_title")
             ),
             None,
         )
         heading = suite_title or suite.replace("_", " ").title()
         lines += [heading, "-" * len(heading), ""]
         for fn in func_order[suite]:
-            info = spec_lookup.get(fn) or spec_lookup.get("test_" + fn)
+            info = _spec_info(spec_lookup, suite, fn)
             if info is None:
-                logger.warning(f"testreport: '{fn}' not in spec needs.json — skipped")
                 continue
             for r in grouped[(suite, fn)]:
                 lines += build_result_rst(
@@ -236,8 +250,8 @@ def _build_results_rst(suite_order, func_order, grouped, spec_lookup, need_names
 def _build_summary_table_rst(grouped, spec_lookup, need_names=None):
     """Build RST lines for the result summary needtable."""
     modules = sorted({
-        (spec_lookup.get(fn) or spec_lookup.get("test_" + fn) or {}).get("test_module", "")
-        for _, fn in grouped
+        (spec_lookup.find(suite, fn) or {}).get("test_module", "")
+        for suite, fn in grouped
     } - {""})
     result_type = _need_name(need_names, "result")
     tbl_filter = (

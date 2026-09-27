@@ -43,6 +43,7 @@ import xml.etree.ElementTree as ET
 
 import rst_builders as rb
 import test_module as tm
+from twister_reader import SpecLookup
 
 # Override names chosen to share NO substring with the engine defaults
 # ("test_case", "test_procedure", "test_result", "verifies", "result_of",
@@ -86,15 +87,14 @@ def _base_result(**kwargs):
 
 
 def _spec_lookup_single():
-    return {
-        "test_queue_put": {
-            "id": "TSPEC-QUEUE-API-001",
-            "test_module": "tests/kernel/queue",
-            "suite": "kernel.queue",
-            "suite_title": "",
-            "req_ids": [],
-        },
-    }
+    return SpecLookup([{
+        "id": "TSPEC-QUEUE-API-001",
+        "test_function": "test_queue_put",
+        "test_module": "tests/kernel/queue",
+        "suite": "kernel.queue",
+        "suite_title": "",
+        "req_ids": [],
+    }])
 
 
 # ---------------------------------------------------------------------------
@@ -194,12 +194,12 @@ def test_summary_table_filter_honours_result_type_mapping_single_module():
 
 
 def test_summary_table_filter_honours_result_type_mapping_multi_module():
-    lookup = {
-        "test_a": {"id": "A", "test_module": "mod_a", "suite": "s",
-                   "suite_title": "", "req_ids": []},
-        "test_b": {"id": "B", "test_module": "mod_b", "suite": "s",
-                   "suite_title": "", "req_ids": []},
-    }
+    lookup = SpecLookup([
+        {"id": "A", "test_function": "test_a", "test_module": "mod_a", "suite": "s",
+         "suite_title": "", "req_ids": []},
+        {"id": "B", "test_function": "test_b", "test_module": "mod_b", "suite": "s",
+         "suite_title": "", "req_ids": []},
+    ])
     grouped = {
         ("s", "a"): [_base_result(function="a")],
         ("s", "b"): [_base_result(function="b")],
