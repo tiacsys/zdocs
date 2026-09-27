@@ -4,6 +4,7 @@
 
 """Tests for test_module.py — helper functions and Sphinx directive integration."""
 import io
+import json
 import xml.etree.ElementTree as ET
 from pathlib import Path
 from types import SimpleNamespace
@@ -13,6 +14,7 @@ import test_module as tm
 from conftest import FIXTURES
 from docutils import nodes
 from docutils.utils import Reporter
+from twister_reader import SpecLookup
 
 _ROOTS = Path(__file__).parent / "roots"
 
@@ -40,23 +42,29 @@ def _make_result(**kwargs):
     return defaults
 
 
-def _spec_lookup():
-    return {
-        "test_queue_put": {
+def _spec_cases():
+    return [
+        {
             "id": "TSPEC-QUEUE-API-001",
+            "test_function": "test_queue_put",
             "test_module": "tests/kernel/queue",
             "suite": "kernel.queue",
             "suite_title": "Queue API ZTest suite",
             "req_ids": ["zep-srs-20-1"],
         },
-        "test_queue_get": {
+        {
             "id": "TSPEC-QUEUE-API-002",
+            "test_function": "test_queue_get",
             "test_module": "tests/kernel/queue",
             "suite": "kernel.queue",
             "suite_title": "Queue API ZTest suite",
             "req_ids": [],
         },
-    }
+    ]
+
+
+def _spec_lookup(*extra):
+    return SpecLookup([*_spec_cases(), *extra])
 
 
 # ---------------------------------------------------------------------------
@@ -114,7 +122,7 @@ def test_build_results_rst_suite_heading_titlecase_fallback():
     suite_order = ["queue_api_1cpu"]
     func_order = {"queue_api_1cpu": ["queue_put"]}
     grouped = {("queue_api_1cpu", "queue_put"): [_make_result(suite="queue_api_1cpu")]}
-    lookup = {"test_queue_put": {**_spec_lookup()["test_queue_put"], "suite_title": ""}}
+    lookup = SpecLookup([{**_spec_cases()[0], "suite_title": ""}])
     lines = tm._build_results_rst(suite_order, func_order, grouped, lookup)
     assert any("Queue Api 1Cpu" in line for line in lines)
 
@@ -147,16 +155,14 @@ def test_build_summary_table_single_module_filter():
 
 
 def test_build_summary_table_multi_module_generic_filter():
-    lookup = {
-        **_spec_lookup(),
-        "test_other": {
-            "id": "TSPEC-OTHER-001",
-            "test_module": "tests/kernel/other",
-            "suite": "s",
-            "suite_title": "",
-            "req_ids": [],
-        },
-    }
+    lookup = _spec_lookup({
+        "id": "TSPEC-OTHER-001",
+        "test_function": "test_other",
+        "test_module": "tests/kernel/other",
+        "suite": "s",
+        "suite_title": "",
+        "req_ids": [],
+    })
     grouped = {
         ("s", "queue_put"): [_make_result()],
         ("s", "other"): [_make_result(function="other")],
@@ -470,3 +476,105 @@ def test_testmodule_directive_missing_xml_dir_hard_fails(tmp_path):
     assert len(result) == 1
     assert isinstance(result[0], nodes.system_message)
     assert result[0]["level"] == Reporter.ERROR_LEVEL
+
+
+# ---------------------------------------------------------------------------
+# spec <-> result correlation across suites (W1)
+#
+# ZTEST function names are not unique across suites — some 300 are reused in
+# the Zephyr test tree (`test_sleep`, `test_remove`, ...). A lookup keyed by
+# the bare function name attaches every such result to whichever test case of
+# that name was read last. These tests drive load_spec_lookup and
+# _build_results_rst together, so they pin the behaviour end to end.
+# ---------------------------------------------------------------------------
+
+def _write_spec(tmp_path, cases):
+    """Write a minimal spec needs.json; `cases` is [(id, suite, test_function)]."""
+    needs = {
+        need_id: {
+            "id": need_id, "type": "test_case", "test_function": fn, "suite": suite,
+            "suite_title": f"{suite} title", "test_module": f"tests/{suite}", "verifies": [],
+        }
+        for need_id, suite, fn in cases
+    }
+    p = tmp_path / "needs.json"
+    p.write_text(json.dumps({"current_version": "1.0", "versions": {"1.0": {"needs": needs}}}))
+    return p
+
+
+def _result_of(lines):
+    """Map each emitted test_result need id to the spec id in its :result_of:."""
+    links, need_id = {}, None
+    for line in lines:
+        line = line.strip()
+        if line.startswith(":id:"):
+            need_id = line.split(":id:")[1].strip()
+        elif line.startswith(":result_of:"):
+            links[need_id] = line.split(":result_of:")[1].strip()
+    return links
+
+
+def _report_lines(spec_path, results):
+    suite_order, func_order, grouped = tm._group_results(results)
+    lookup = tm.load_spec_lookup(spec_path)
+    return tm._build_results_rst(suite_order, func_order, grouped, lookup)
+
+
+def _warnings(monkeypatch):
+    seen = []
+    monkeypatch.setattr(tm.logger, "warning", lambda msg, *a, **k: seen.append(msg))
+    return seen
+
+
+def test_results_link_to_their_own_suites_test_case(tmp_path):
+    spec = _write_spec(tmp_path, [
+        ("TSPEC-A-001", "suite_a", "test_shared"),
+        ("TSPEC-B-001", "suite_b", "test_shared"),
+    ])
+    results = [
+        _make_result(suite="suite_a", function="shared", scenario="sc.a"),
+        _make_result(suite="suite_b", function="shared", scenario="sc.b"),
+    ]
+    links = _result_of(_report_lines(spec, results))
+    assert sorted(links.values()) == ["TSPEC-A-001", "TSPEC-B-001"]
+    assert all(need_id.endswith(spec_id) for need_id, spec_id in links.items())
+
+
+def test_suite_heading_comes_from_own_suite(tmp_path):
+    spec = _write_spec(tmp_path, [
+        ("TSPEC-A-001", "suite_a", "test_shared"),
+        ("TSPEC-B-001", "suite_b", "test_shared"),
+    ])
+    lines = _report_lines(spec, [_make_result(suite="suite_a", function="shared")])
+    assert "suite_a title" in lines
+    assert "suite_b title" not in lines
+
+
+def test_unique_bare_name_still_matches_across_suite_mismatch(tmp_path):
+    spec = _write_spec(tmp_path, [("TSPEC-A-001", "suite_a", "test_only_here")])
+    lines = _report_lines(spec, [_make_result(suite="", function="only_here")])
+    assert list(_result_of(lines).values()) == ["TSPEC-A-001"]
+
+
+def test_ambiguous_bare_name_warns_and_links_nothing(tmp_path, monkeypatch):
+    warnings = _warnings(monkeypatch)
+    spec = _write_spec(tmp_path, [
+        ("TSPEC-A-001", "suite_a", "test_shared"),
+        ("TSPEC-B-001", "suite_b", "test_shared"),
+    ])
+    lines = _report_lines(spec, [_make_result(suite="suite_c", function="shared")])
+    assert _result_of(lines) == {}
+    assert any("ambiguous" in w and "TSPEC-A-001" in w and "TSPEC-B-001" in w for w in warnings)
+
+
+def test_duplicate_suite_and_function_warns_and_links_nothing(tmp_path, monkeypatch):
+    # The same (suite, function) pair in two test modules — 26 such pairs exist
+    # in the Zephyr tree. Neither may win silently.
+    warnings = _warnings(monkeypatch)
+    spec = _write_spec(tmp_path, [
+        ("TSPEC-A-001", "basic", "test_shared"),
+        ("TSPEC-A-002", "basic", "test_shared"),
+    ])
+    lines = _report_lines(spec, [_make_result(suite="basic", function="shared")])
+    assert _result_of(lines) == {}
+    assert any("ambiguous" in w for w in warnings)

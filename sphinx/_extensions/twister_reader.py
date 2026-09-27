@@ -18,6 +18,7 @@ from rst_builders import _need_name
 
 __all__ = [
     "parse_twister_results",
+    "SpecLookup",
     "load_spec_lookup",
     "find_handler_log",
     "load_twister_meta",
@@ -83,8 +84,47 @@ def parse_twister_results(xml_path, module_filter=None, exact=False):
     return results
 
 
+class SpecLookup:
+    """The spec's test cases, found by the (suite, function) of a twister result.
+
+    ZTEST function names are not unique across suites (some 300 are reused in
+    the Zephyr test tree), so the suite is part of the key. Each entry is a dict
+    with at least `id`, `suite` and `test_function`.
+
+    A result's function has ztest's ``test_`` prefix stripped, while the spec
+    records the C name as written, so both spellings are tried. When the
+    result's suite has no such case, the bare function name is used instead —
+    but only if exactly one case carries it. `candidates()` returns every
+    match, so an ambiguous one (several suites, or one (suite, function) pair
+    documented in several test modules) is visible to the caller; `find()`
+    returns a case only when there is exactly one.
+    """
+
+    def __init__(self, entries=()):
+        self._by_key = {}
+        self._by_name = {}
+        for info in entries:
+            fn = info["test_function"]
+            self._by_key.setdefault((info.get("suite", ""), fn), []).append(info)
+            self._by_name.setdefault(fn, []).append(info)
+
+    def candidates(self, suite, fn):
+        names = (fn, "test_" + fn)
+        for name in names:
+            if (suite, name) in self._by_key:
+                return self._by_key[(suite, name)]
+        for name in names:
+            if name in self._by_name:
+                return self._by_name[name]
+        return []
+
+    def find(self, suite, fn):
+        hits = self.candidates(suite, fn)
+        return hits[0] if len(hits) == 1 else None
+
+
 def load_spec_lookup(json_path, need_names=None):
-    """Read spec needs.json; return {test_function: {id, test_module, suite, req_ids}}.
+    """Read spec needs.json; return a SpecLookup of its test cases.
 
     `need_names` is the same role->name mapping `rst_builders.py` emitters
     take (`testmodule_need_types`/`testmodule_need_links`, merged by the
@@ -103,20 +143,18 @@ def load_spec_lookup(json_path, need_names=None):
     needs = versions.get(current, {}).get("needs", {})
     case_type = _need_name(need_names, "case")
     verifies_link = _need_name(need_names, "verifies")
-    lookup = {}
-    for need_id, need in needs.items():
-        if need.get("type") != case_type:
-            continue
-        fn = need.get("test_function", "")
-        if fn:
-            lookup[fn] = {
-                "id": need_id,
-                "test_module": need.get("test_module", ""),
-                "suite": need.get("suite", ""),
-                "suite_title": need.get("suite_title", ""),
-                "req_ids": need.get(verifies_link, []),
-            }
-    return lookup
+    return SpecLookup(
+        {
+            "id": need_id,
+            "test_function": need["test_function"],
+            "test_module": need.get("test_module", ""),
+            "suite": need.get("suite", ""),
+            "suite_title": need.get("suite_title", ""),
+            "req_ids": need.get(verifies_link, []),
+        }
+        for need_id, need in needs.items()
+        if need.get("type") == case_type and need.get("test_function")
+    )
 
 
 def _out_dir_segment(test_path):
