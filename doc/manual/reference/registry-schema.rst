@@ -238,6 +238,36 @@ Each entry in ``documents:``, keyed by its id:
    rejected at configure time as a ``spec:`` target, because ``testreport``
    correlates against ``needs.json``, and the synthesized stub is not that.
 
+``doxygen_tag``
+   Opt-in; publishes this document's needs as Doxygen requirements, so a
+   ``\verifies`` or ``\satisfies`` in any ``kind: doxygen`` peer resolves
+   against requirements authored in reStructuredText, and links to their
+   Sphinx pages. Two shapes:
+
+   .. code-block:: yaml
+
+      doxygen_tag: true                # every need this document defines
+
+   .. code-block:: yaml
+
+      doxygen_tag:
+        types: [requirement]           # only needs of these types
+
+   Requires ``kind: sphinx`` and ``needs: {source: json}``, because the tag file
+   is generated from this document's own ``needs.json``. Anything else is a
+   configure-time error, as are an unknown key and an empty or non-list
+   ``types``. The engine adds a ``<id>-needstag`` target that writes
+   ``deploy/html/<id>/needs.tag`` after the document's stage-1 index, and lists
+   that file in every Doxygen peer's ``TAGFILES``. Imported (external) needs are
+   left out, because their own document publishes them.
+
+   Nothing but Sphinx parses the requirements, so no ``.dox`` is generated and
+   no Doxygen project is built for them. A ``\verifies`` naming an id the tag
+   does not declare warns ``Reference to unknown requirement``, which the
+   stage-2 warning gate (``ZDOCS_DOXYGEN_WARN_FAIL_PATTERNS``) fails on.
+   ``crossref: false`` on either side removes the entry, as for any tag file.
+   Needs Doxygen 1.16 or newer.
+
 ``testmodule``
    Opt-in sub-block (see :doc:`../explanation/testmodule-and-twister` and
    :doc:`directives-and-roles`); its presence is the sole trigger that loads

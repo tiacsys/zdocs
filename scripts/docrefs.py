@@ -61,6 +61,13 @@ import yaml
 #: the engine renames it to this on download.
 DOXYGEN_TAGFILE = "doxygen.tag"
 
+#: Filename of the Doxygen tag file a ``doxygen_tag:`` Sphinx document publishes
+#: beside its ``needs.json`` (see :func:`needs_tag`). Named apart from
+#: :data:`DOXYGEN_TAGFILE` because it is not written by Doxygen and describes
+#: needs, not symbols. Shared with ``cmake/registry.cmake`` only through the
+#: ``needs-tag`` CLI, which writes it.
+NEEDS_TAGFILE = "needs.tag"
+
 
 def _crossref(meta):
     """Whether a document takes part in cross-document linking.
@@ -140,6 +147,50 @@ _KINDS = ("sphinx", "doxygen", "external", "sphinx-external", "doxygen-external"
 _TESTMODULE_KEYS = ("doxygen_source", "api_reference", "spec")
 
 
+#: Allowed keys inside a document's ``doxygen_tag:`` block.
+_DOXYGEN_TAG_KEYS = ("types",)
+
+
+def _validate_doxygen_tag(doc_id, meta, kind, doxygen_tag):
+    """Raise ``ValueError`` unless ``doxygen_tag:`` is usable on ``doc_id``."""
+    if kind != "sphinx":
+        raise ValueError(
+            f"docrefs: document '{doc_id}' has 'doxygen_tag:' but is kind "
+            f"'{kind}' — only a 'kind: sphinx' document publishes its needs "
+            f"as a Doxygen tag file"
+        )
+    needs = meta.get("needs")
+    if needs is None or needs.get("source") != "json":
+        raise ValueError(
+            f"docrefs: document '{doc_id}' has 'doxygen_tag:' but no "
+            f"'needs: {{source: json}}' — the tag file is generated from this "
+            f"document's own needs.json export"
+        )
+    if doxygen_tag is True:
+        return
+    if not isinstance(doxygen_tag, dict):
+        # `false` included: absence already means "off", and a second spelling
+        # of it only invites a quoted "false" that would read as true.
+        raise ValueError(
+            f"docrefs: document '{doc_id}' has doxygen_tag '{doxygen_tag}' — "
+            f"use 'true' or a mapping such as '{{types: [requirement]}}'"
+        )
+    unknown = sorted(set(doxygen_tag) - set(_DOXYGEN_TAG_KEYS))
+    if unknown:
+        raise ValueError(
+            f"docrefs: document '{doc_id}' has unknown key(s) {unknown} in its "
+            f"'doxygen_tag:' block — allowed keys are {_DOXYGEN_TAG_KEYS}"
+        )
+    types = doxygen_tag.get("types")
+    if types is not None and (
+        not isinstance(types, list) or not types or not all(isinstance(t, str) for t in types)
+    ):
+        raise ValueError(
+            f"docrefs: document '{doc_id}' has doxygen_tag.types '{types}' — "
+            f"it must be a non-empty list of need type names"
+        )
+
+
 def _validate(data):
     """Raise ``ValueError`` on any registry validation problem."""
     groups = data.get("groups")
@@ -207,6 +258,16 @@ def _validate(data):
             raise ValueError(
                 f"docrefs: {kind} document '{doc_id}' is missing a 'remote-tagfile:' field"
             )
+
+        # -- doxygen_tag: publish the needs as a Doxygen tag file ---------
+        #
+        # Only a Sphinx document that exports its own needs.json can publish
+        # one: the tag is generated FROM that export. Rejected here rather than
+        # at build time, where a missing needs.json would leave every
+        # `\verifies` in the peers "unknown" with no hint why.
+        doxygen_tag = meta.get("doxygen_tag")
+        if doxygen_tag is not None:
+            _validate_doxygen_tag(doc_id, meta, kind, doxygen_tag)
 
         # -- testmodule: sub-block (step 27) -----------------------------
         #
@@ -903,7 +964,100 @@ def tagfiles(this_doc, deploy_dir, registry=None):
             tag = (deploy / path / DOXYGEN_TAGFILE).as_posix()
             base_dir_url = _intersphinx_target_dir(meta["remote-url"])
             entries.append(f"{tag}={base_dir_url}")
+        elif kind in (None, "sphinx") and meta.get("doxygen_tag") is not None:
+            # `kind` is read raw above; omitted means sphinx.
+            # A needs tag (see needs_tag()): its compounds' filenames are the
+            # Sphinx pages, relative to that document's html root.
+            path = meta.get("path", f"html/{doc_id}")
+            tag = (deploy / path / NEEDS_TAGFILE).as_posix()
+            location = posixpath.relpath((deploy / path).as_posix(), this_html)
+            entries.append(f"{tag}={location}")
     return " ".join(entries)
+
+
+def _needs_tag_xml(needs, types):
+    """Doxygen tag-file XML declaring each need in ``needs`` as a requirement.
+
+    Doxygen >= 1.16 resolves ``\\verifies`` / ``\\satisfies`` against a
+    ``<compound kind="requirement">`` from any tag file in ``TAGFILES``, and
+    links to ``<location>/<filename>#<id>`` — it appends the anchor itself. So
+    ``filename`` is the need's page, and the anchor is the need id, which is
+    what sphinx-needs uses for the need's target. An id no compound declares
+    still warns "Reference to unknown requirement", which is what the stage-2
+    warn-log gate keys on.
+
+    ``title`` is the bare need title: Doxygen already parenthesises it where it
+    renders a reference (``SD-REQ-001 (Title)``). It is XML-escaped only,
+    which is what Doxygen writes into its own tag files. Doxygen then reads the
+    title as markup, and inconsistently: the requirements page interprets
+    commands (``@c``, ``\\b``) that the reference text shows verbatim, and a
+    backslash escape is consumed in one place but printed in the other. No
+    encoding is right in both, so a title with Doxygen markup characters
+    renders as Doxygen would render the same ``\\requirement`` title, and a
+    ``<word>`` in it warns "Unsupported xml/html tag". The warning is harmless
+    to the build, because it doesn't match the stage-2 gate's pattern.
+    """
+    from xml.sax.saxutils import escape
+
+    lines = [
+        "<?xml version='1.0' encoding='UTF-8' standalone='yes' ?>",
+        "<!-- Generated by zdocs (docrefs.py needs-tag) from needs.json. Do not edit. -->",
+        "<tagfile>",
+    ]
+    for need_id in sorted(needs):
+        need = needs[need_id]
+        if need.get("is_external"):
+            # Imported from a peer: that peer publishes it, if anyone does.
+            continue
+        if types is not None and need.get("type") not in types:
+            continue
+        lines += [
+            '  <compound kind="requirement">',
+            f"    <id>{escape(need_id)}</id>",
+            f"    <title>{escape(need.get('title') or '')}</title>",
+            f"    <filename>{escape(need['docname'])}.html</filename>",
+            "  </compound>",
+        ]
+    lines.append("</tagfile>")
+    return "\n".join(lines) + "\n"
+
+
+def needs_tag(doc_id, deploy_dir, registry=None):
+    """Write ``doc_id``'s needs as a Doxygen tag file; return its path.
+
+    Reads the ``needs.json`` that the document's own stage-1 ``xref`` build
+    exported, and writes :data:`NEEDS_TAGFILE` beside it. It is the only link
+    from sphinx-needs sources to Doxygen's ``\\requirement`` vocabulary, so
+    the requirements stay authored in reStructuredText and are parsed by
+    Sphinx alone. There is no second parser and no generated ``.dox``.
+
+    Nothing reads the tag before stage 2 (stage-1 Doxygen blanks ``TAGFILES``),
+    so ``cmake/registry.cmake`` builds it after ``<doc>-index`` and outside
+    ``doc-tags``. That ordering is what keeps this cycle-free.
+
+    The file is rewritten only when its content changes, so an unchanged
+    requirement set does not look new to anything that tracks timestamps.
+    """
+    documents = _registry(registry)["documents"]
+    meta = documents.get(doc_id)
+    if meta is None or meta.get("doxygen_tag") is None:
+        raise ValueError(f"docrefs: document '{doc_id}' does not declare 'doxygen_tag:'")
+    html_dir = Path(deploy_dir) / meta.get("path", f"html/{doc_id}")
+    needs_json = html_dir / "needs.json"
+    if not needs_json.is_file():
+        raise ValueError(
+            f"docrefs: {needs_json} not found — '{doc_id}' must be built "
+            f"(its stage-1 index) before its needs tag"
+        )
+    export = json.loads(needs_json.read_text())
+    needs = export["versions"][export["current_version"]]["needs"]
+    types = meta["doxygen_tag"].get("types") if isinstance(meta["doxygen_tag"], dict) else None
+
+    out = html_dir / NEEDS_TAGFILE
+    content = _needs_tag_xml(needs, types)
+    if not out.is_file() or out.read_text() != content:
+        out.write_text(content)
+    return out
 
 
 def navlinks(this_doc, registry=None):
@@ -1022,6 +1176,9 @@ def manifest(registry=None):
         never its own spec), so this cannot cycle; it is deliberately NOT
         generalised to every needs-importer/publisher pair, which CAN cycle
         and is its own, deferred step.
+      * ``doxygen_tag`` — ``True`` when the document declares
+        ``doxygen_tag:``. ``add_docs_from_registry`` then adds the
+        ``<doc>-needstag`` target (see :func:`needs_tag`).
     """
     documents = _registry(registry)["documents"]
     entries = []
@@ -1038,6 +1195,7 @@ def manifest(registry=None):
                 "remote_tagfile": meta.get("remote-tagfile"),
                 "testmodule_doxygen_source": testmodule.get("doxygen_source"),
                 "testmodule_spec": testmodule.get("spec"),
+                "doxygen_tag": meta.get("doxygen_tag") is not None,
             }
         )
     return entries
@@ -1115,6 +1273,24 @@ def _cli(argv=None):
         help="path to the document registry (documents.yaml)",
     )
 
+    p_needs_tag = sub.add_parser(
+        "needs-tag",
+        help="write a document's needs as a Doxygen tag file",
+        description="Read a doxygen_tag: document's needs.json and write "
+        f"{NEEDS_TAGFILE} beside it, declaring each need as a Doxygen "
+        "requirement so \\verifies / \\satisfies resolve against it.",
+    )
+    p_needs_tag.add_argument("doc_id", help="registry id of the Sphinx document")
+    p_needs_tag.add_argument(
+        "deploy_dir", help="path to the deploy/ directory holding the built docs"
+    )
+    p_needs_tag.add_argument(
+        "--registry",
+        metavar="documents.yaml",
+        required=True,
+        help="path to the document registry (documents.yaml)",
+    )
+
     p_version = sub.add_parser(
         "version",
         help="print a document's git-derived version string",
@@ -1152,6 +1328,11 @@ def _cli(argv=None):
         sys.stdout.write("TRUE" if xml_enabled(args.registry) else "FALSE")
     elif args.command == "manifest":
         sys.stdout.write(json.dumps(manifest(args.registry)))
+    elif args.command == "needs-tag":
+        try:
+            needs_tag(args.doc_id, args.deploy_dir, args.registry)
+        except ValueError as exc:
+            sys.exit(str(exc))
     elif args.command == "version":
         meta = _registry(args.registry)["documents"].get(args.doc_id, {})
         ver = resolve_version(
