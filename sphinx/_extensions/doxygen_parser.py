@@ -339,6 +339,20 @@ def parse_memberdef(
         if see_sect is not None:
             see_rst = see_to_rst(see_sect, api_html_dir)
 
+    # Doxygen's native `\verifies` (1.16+): a <verifies> child of the memberdef
+    # itself, not of the description, with the UID only in each requirement's
+    # refid. Read beside the `@reqref` xrefsects above; both are live while
+    # sources migrate.
+    #
+    # The refid is NOT proof the requirement exists: Doxygen synthesizes it from
+    # the UID string whether or not any `\requirement` defines it, so a typo is
+    # byte-identical here to a real link. Only Doxygen's warning ("Reference to
+    # unknown requirement") tells them apart.
+    for req in memberdef.findall("verifies/requirement"):
+        uid = req.get("refid", "").removeprefix("requirement_")
+        if uid and uid not in req_ids:
+            req_ids.append(uid)
+
     ibd = memberdef.find("inbodydescription")
     body_sections: list[list[str]] = []
     if ibd is not None:
