@@ -192,16 +192,24 @@ def test_see_to_rst_ref_unresolved():
 # parse_memberdef
 # ---------------------------------------------------------------------------
 
-def _make_memberdef(extra_xrefsects="", inbody=""):
+def _make_memberdef(extra_xrefsects="", inbody="", member_extra=""):
     return ET.fromstring(
         f"<memberdef kind='function' id='group__queue__api_1a001'>"
         f"<name>test_queue_put</name>"
         f"<briefdescription><para>Test queue put.</para></briefdescription>"
         f"<detaileddescription><para>{extra_xrefsects}</para></detaileddescription>"
         f"<inbodydescription>{inbody}</inbodydescription>"
+        f"{member_extra}"
         f"<location file='test_queue.c' line='42' bodyfile='test_queue.c' bodystart='42'/>"
         f"</memberdef>"
     )
+
+
+def _verifies(*uids):
+    """Doxygen 1.16's native `\\verifies` output: a <verifies> child of the
+    memberdef, one <requirement> per UID, the UID only in its refid."""
+    reqs = "".join(f"<requirement refid='requirement_{uid}'/>" for uid in uids)
+    return f"<verifies>{reqs}</verifies>"
 
 
 def test_parse_memberdef_extracts_testid():
@@ -226,6 +234,36 @@ def test_parse_memberdef_extracts_reqrefs():
     md = _make_memberdef(extra_xrefsects=xref)
     info = dp.parse_memberdef(md, "group__queue__api", "/testspec/html", "/api/html")
     assert "zep-srs-20-1" in info["req_ids"]
+
+
+def test_parse_memberdef_extracts_native_verifies():
+    md = _make_memberdef(member_extra=_verifies("ZEP-SRS-20-6", "ZEP-SRS-20-7"))
+    info = dp.parse_memberdef(md, "group__queue__api", "/testspec/html", "/api/html")
+    assert info["req_ids"] == ["ZEP-SRS-20-6", "ZEP-SRS-20-7"]
+
+
+def test_parse_memberdef_native_verifies_and_reqrefs_coexist():
+    # Both paths are live during the migration (D2); a UID named by both is
+    # listed once.
+    xref = (
+        "<xrefsect id='reqrefs_1reqrefs'>"
+        "<xreftitle>Requirement Refs</xreftitle>"
+        "<xrefdescription><para>ZEP-SRS-20-1</para></xrefdescription>"
+        "</xrefsect>"
+    )
+    md = _make_memberdef(
+        extra_xrefsects=xref, member_extra=_verifies("ZEP-SRS-20-1", "ZEP-SRS-20-2")
+    )
+    info = dp.parse_memberdef(md, "group__queue__api", "/testspec/html", "/api/html")
+    assert info["req_ids"] == ["ZEP-SRS-20-1", "ZEP-SRS-20-2"]
+
+
+def test_parse_memberdef_ignores_verifies_of_other_kinds():
+    # Only <requirement> children carry a UID; anything else Doxygen may put
+    # there is not a requirement link.
+    md = _make_memberdef(member_extra="<verifies><ref refid='x'>x</ref></verifies>")
+    info = dp.parse_memberdef(md, "group__queue__api", "/testspec/html", "/api/html")
+    assert info["req_ids"] == []
 
 
 def test_parse_memberdef_active_status():
