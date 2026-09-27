@@ -75,6 +75,9 @@ endmacro()
 #                        with zero output formats (fail loudly at configure
 #                        time, per this engine's own convention — see
 #                        add_sphinx_target's identical BUILDERS check).
+#                        With `doxygen_tag:`, also <id>-needstag: its needs
+#                        as deploy/html/<id>/needs.tag, after <id>-index, in
+#                        doc-index but not doc-tags.
 #   <group>-<builder>          depends on every qualifying document's own
 #                               <id>-<builder> target.
 #   <group>-<builder>-nodeps   the same, but against each document's
@@ -118,7 +121,9 @@ endmacro()
   - ``sphinx`` (or omitted) — :cmake:command:`add_sphinx_target`
     ``(<id> BUILDERS <builders...> REGISTRY <REGISTRY> [DOCDIR ...])``.
     A configure-time ``FATAL_ERROR`` naming the document if ``builders:`` is
-    empty or missing.
+    empty or missing. A document with ``doxygen_tag:`` also gets
+    ``<id>-needstag``, which writes its needs as a Doxygen tag file after its
+    stage-1 index (in ``doc-index``, not ``doc-tags``).
   - ``doxygen`` — :cmake:command:`add_doxygen_target`
     ``(<id> REGISTRY <REGISTRY> [DOCDIR ...])``.
   - ``external`` / ``sphinx-external`` — no CMake target of any kind.
@@ -305,6 +310,27 @@ function(add_docs_from_registry)
       string(JSON _zdocs_testmodule_spec GET "${_zdocs_entry}" "testmodule_spec")
       if(NOT _zdocs_testmodule_spec STREQUAL "")
         add_dependencies(${_zdocs_id}-index ${_zdocs_testmodule_spec}-index)
+      endif()
+
+      # doxygen_tag: this document's needs, as a Doxygen tag file every
+      # doxygen peer lists in TAGFILES (docrefs.py tagfiles), so `\verifies`
+      # and `\satisfies` resolve against requirements authored in rst.
+      # Generated from the needs.json that <id>-index exports, so it runs
+      # after that. It joins doc-index but deliberately NOT doc-tags: every
+      # Sphinx index waits on doc-tags, so membership there would be a cycle
+      # (<id>-needstag -> <id>-index -> doc-tags -> <id>-needstag). Nothing
+      # needs it earlier, because stage-1 doxygen blanks its TAGFILES.
+      string(JSON _zdocs_doxygen_tag GET "${_zdocs_entry}" "doxygen_tag")
+      if(_zdocs_doxygen_tag)
+        add_custom_target(
+          ${_zdocs_id}-needstag
+          COMMAND
+            ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../scripts/docrefs.py
+            needs-tag ${_zdocs_id} ${CMAKE_CURRENT_BINARY_DIR}/deploy --registry ${ARGS_REGISTRY}
+          COMMENT "Doxygen needs tag for ${_zdocs_id}..."
+        )
+        add_dependencies(${_zdocs_id}-needstag ${_zdocs_id}-index)
+        add_dependencies(doc-index ${_zdocs_id}-needstag)
       endif()
     endif()
   endforeach()
