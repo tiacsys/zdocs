@@ -194,3 +194,27 @@ def test_build_scenario_table_renders_list_table(tmp_path):
 def test_build_scenario_table_missing_yaml():
     lines = rb.build_scenario_table(FIXTURES / "nonexistent.yaml")
     assert lines == []
+
+
+def test_build_procedure_need_rst_links_prose_but_keeps_title_plain():
+    # A need's title is not parsed as RST, so link markup there would render
+    # verbatim; the details are parsed and link like the see-also line does.
+    import xml.etree.ElementTree as ET
+    ref = (
+        "<ref refid='group__fifo__apis_1ga1e2c' kindref='member' "
+        "external='/deploy/html/api/doxygen.tag'>k_fifo_get()</ref>"
+    )
+    memberdef = ET.fromstring(
+        "<memberdef kind='function' id='group__queue__procedures_1b001'>"
+        "<name>drain</name>"
+        f"<briefdescription><para>Drain via {ref}.</para></briefdescription>"
+        f"<detaileddescription><para>Calls {ref} until empty.</para></detaileddescription>"
+        "<location file='helpers.c' line='10' bodyfile='helpers.c' bodystart='10'/>"
+        "</memberdef>"
+    )
+    rst = rb.build_procedure_need_rst(
+        memberdef, "group__queue__procedures", "queue_procedures", "../testspec", "../api"
+    )
+    title = rst.splitlines()[0]
+    assert "<" not in title and "k_fifo_get" in title
+    assert "`k_fifo_get() <../api/group__fifo__apis.html#ga1e2c>`__ until empty" in rst

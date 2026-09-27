@@ -131,6 +131,7 @@ def build_procedure_need_rst(
 ):
     """Build a test_procedure needs item for one shared test procedure."""
     from doxygen_parser import (
+        RefLinks,
         detail_rst_lines,
         extract_params,
         para_text,
@@ -140,6 +141,7 @@ def build_procedure_need_rst(
     name = memberdef.findtext("name", "").strip()
     need_id = f"test-proc-{proc_group_name}-{name}"
 
+    # No links here: the brief is only used as the title, which is not parsed.
     brief = para_text(memberdef.find(".//briefdescription/para"))
     title = (brief[:90] + "…") if len(brief) > 90 else brief
     if not title:
@@ -163,13 +165,14 @@ def build_procedure_need_rst(
     params = []
     see_rst_str = ""
     if dd is not None:
-        params = extract_params(dd)
+        links = RefLinks(api=api_html_dir, local=testspec_html_dir)
+        params = extract_params(dd, links)
         # Was a second, hand-rolled copy of the same paragraph walk, carrying the
         # same list-dropping defect. One helper now, so a fix lands in both.
-        detail_lines = detail_rst_lines(dd)
+        detail_lines = detail_rst_lines(dd, links)
         see_sect = dd.find(".//simplesect[@kind='see']")
         if see_sect is not None:
-            see_rst_str = see_to_rst(see_sect, api_html_dir)
+            see_rst_str = see_to_rst(see_sect, api_html_dir, testspec_html_dir)
 
     lines = []
     lines.append(f".. {_need_name(need_names, 'procedure')}:: {title}")

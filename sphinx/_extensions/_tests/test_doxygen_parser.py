@@ -446,3 +446,60 @@ def test_extract_params_basic():
     assert len(params) == 1
     assert params[0][0] == "queue"
     assert "queue pointer" in params[0][1]
+
+
+# ---------------------------------------------------------------------------
+# symbol links in prose (brief, details, test steps, Arrange/Act/Assert)
+#
+# The see-also line linked a symbol into the Doxygen HTML; the same symbol in
+# the prose became a :c:func: role, which nothing in the test documents can
+# resolve, so it rendered as code with no link and no warning.
+# ---------------------------------------------------------------------------
+
+API = "../api"
+SPEC = "../testspec"
+EXT_REF = (
+    "<ref refid='group__fifo__apis_1ga1e2c' kindref='member' "
+    "external='/deploy/html/api/doxygen.tag'>k_fifo_get()</ref>"
+)
+LOCAL_REF = "<ref refid='group__procs_1ga3f93' kindref='member'>get_scratch_packet()</ref>"
+
+
+def test_para_text_links_external_symbol_into_api_doxygen():
+    para = ET.fromstring(f"<para>Call {EXT_REF} now.</para>")
+    text = dp.para_text(para, links=dp.RefLinks(api=API, local=SPEC))
+    assert "`k_fifo_get() <../api/group__fifo__apis.html#ga1e2c>`__" in text
+    assert ":c:func:" not in text
+
+
+def test_para_text_links_local_symbol_into_testspec_doxygen():
+    para = ET.fromstring(f"<para>Call {LOCAL_REF}.</para>")
+    text = dp.para_text(para, links=dp.RefLinks(api=API, local=SPEC))
+    assert "`get_scratch_packet() <../testspec/group__procs.html#ga3f93>`__" in text
+
+
+def test_para_text_without_links_is_unchanged():
+    para = ET.fromstring(f"<para>Call {EXT_REF}.</para>")
+    assert dp.para_text(para) == "Call :c:func:`k_fifo_get`."
+
+
+def test_parse_memberdef_links_symbols_in_brief_details_and_body():
+    md = ET.fromstring(
+        "<memberdef kind='function' id='group__s_1a1'><name>test_x</name>"
+        f"<briefdescription><para>Verify {EXT_REF}.</para></briefdescription>"
+        f"<detaileddescription><para>Details {EXT_REF}.</para></detaileddescription>"
+        "<inbodydescription><para><simplesect kind='par'><title>Act</title>"
+        f"<para><orderedlist><listitem><para>Call {EXT_REF}.</para></listitem></orderedlist></para>"
+        "</simplesect></para></inbodydescription>"
+        "<location file='t.c' line='1'/></memberdef>"
+    )
+    info = dp.parse_memberdef(md, "group__s", SPEC, API)
+    link = "<../api/group__fifo__apis.html#ga1e2c>`__"
+    assert link in info["brief"]
+    assert any(link in line for line in info["detail_lines"])
+    assert any(link in line for sect in info["body_sections"] for line in sect)
+
+
+def test_see_to_rst_links_local_symbol_when_testspec_dir_given():
+    see = ET.fromstring(f"<simplesect kind='see'><para>{LOCAL_REF}</para></simplesect>")
+    assert "../testspec/group__procs.html#ga3f93" in dp.see_to_rst(see, API, SPEC)
