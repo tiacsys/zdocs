@@ -24,6 +24,10 @@ conflict with a docset wide `conf_common`` the user might have on the path as we
     no cross-references, which is a supported configuration, not a degraded one.
 ``ZDOCS_DOC_BUILD_DIR``, ``ZDOCS_DOC_DEPLOY_DIR``, ``ZDOCS_DOC_BASE_URL``
     Build tree, deploy tree, and the URL the deploy tree is served under.
+``ZDOCS_DRAFT_MODE``
+    Set (to a CMake-true value) to add a "development version" banner to
+    every HTML page. See :func:`_cmake_bool_env` for why this is not a
+    plain truthy-string check.
 """
 
 from __future__ import annotations
@@ -47,6 +51,18 @@ if _zephyr_base:
 
 import docrefs  # noqa: E402  (needs the sys.path above)
 from doc_control import latex_escape  # noqa: E402  (same)
+
+# CMake BOOL cache variables threaded through SPHINX_ENV (see sphinx.cmake)
+# arrive here as their literal CMake string form, not as "set or unset" -
+# an OFF default becomes the env var text "OFF", which `if os.environ.get(
+# ...)` would read as a non-empty, truthy Python string. Falsy spellings
+# per CMake's own boolean semantics (case-insensitive), so a consumer's
+# `set(FOO OFF CACHE BOOL ...)` default actually means off here too.
+_CMAKE_FALSY = {"", "0", "off", "no", "false", "n", "ignore", "notfound"}
+
+
+def _cmake_bool_env(name):
+    return os.environ.get(name, "").strip().lower() not in _CMAKE_FALSY
 
 #: Defines the macro ``doc_control`` emits for the PDF-only sign-off block.
 #:
@@ -404,6 +420,14 @@ def configure(
         str(p) for p in (static_path or [])
     ]
     namespace["html_css_files"] = ["zdocs-sphinx.css"] + list(css_files or [])
+    # ZDOCS_DRAFT_MODE (see doc/manual/reference/consumer-contract.rst):
+    # a consumer's CI sets this for a non-released deployment (e.g. a
+    # feature-branch preview) so readers can tell it apart from the stable
+    # one at a glance. draft.css alone (a fixed top/bottom banner, no
+    # markup/template change) keeps this independent of theme/template
+    # choices.
+    if _cmake_bool_env("ZDOCS_DRAFT_MODE"):
+        namespace["html_css_files"].append("draft.css")
     if refs is not None:
         # Consumed by the cross-document navigation in the page template.
         namespace["html_context"] = {"reference_groups": refs.reference_groups}
