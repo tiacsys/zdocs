@@ -26,17 +26,24 @@ conflict with a docset wide `conf_common`` the user might have on the path as we
     Build tree, deploy tree, and the URL the deploy tree is served under.
 ``ZDOCS_DRAFT_MODE``
     Set (to a CMake-true value) to add a "development version" banner to
-    every HTML page, and to keep the displayed version git-describe-based
-    instead of pinned to the document's own approved
-    ``.. doc_control::`` ``:version:`` stamp. See :func:`_cmake_bool_env`
-    for why this is not a plain truthy-string check.
+    every HTML page, and to auto-derive ``VERSION_APPEND`` (below) from the
+    document's scoped ``git describe`` output when it is not already set.
+    See :func:`_cmake_bool_env` for why this is not a plain truthy-string
+    check.
+``VERSION_APPEND``
+    Optional. Extends the document's base version - its own approved
+    ``.. doc_control::`` ``:version:`` stamp - into the "full version"
+    actually displayed, without touching that stamp. An explicit value here
+    (a developer's own manual build stamp, or set by a CI job) always wins;
+    otherwise, under ``ZDOCS_DRAFT_MODE``, it is derived automatically. Empty
+    on a stable-branch build, so its full version is exactly the base
+    version. See :func:`docrefs.resolve_version_append`.
 """
 
 from __future__ import annotations
 
 import datetime
 import os
-import re
 import sys
 from pathlib import Path
 
@@ -67,33 +74,6 @@ _CMAKE_FALSY = {"", "0", "off", "no", "false", "n", "ignore", "notfound"}
 def _cmake_bool_env(name):
     return os.environ.get(name, "").strip().lower() not in _CMAKE_FALSY
 
-
-_DOC_CONTROL_BLOCK_RE = re.compile(
-    r"^\.\. doc_control::\s*\n((?:[ \t]+:\S+:.*\n)+)", re.MULTILINE
-)
-_DOC_CONTROL_VERSION_RE = re.compile(r"^[ \t]+:version:\s*(\S+)", re.MULTILINE)
-
-
-def _doc_control_stamped_version(doc_dir):
-    """This document's own declared version - the ``:version:`` option of
-    its ``.. doc_control::`` directive - read directly from its RST source.
-
-    Conf.py runs before Sphinx has parsed anything, so this cannot reuse
-    the directive's own option handling; it is a plain text scan instead,
-    mirroring what deploy tooling outside this engine does for the same
-    reason. None if no directive, or no explicit ``:version:`` override, is
-    found (the directive then defaults to the resolved version itself, so
-    there would be nothing to pin to).
-    """
-    for rst in sorted(Path(doc_dir).rglob("*.rst")):
-        text = rst.read_text(encoding="utf-8", errors="replace")
-        m = _DOC_CONTROL_BLOCK_RE.search(text)
-        if not m:
-            continue
-        vm = _DOC_CONTROL_VERSION_RE.search(m.group(1))
-        if vm:
-            return vm.group(1).strip()
-    return None
 
 #: Defines the macro ``doc_control`` emits for the PDF-only sign-off block.
 #:
@@ -221,21 +201,42 @@ def configure(
     # block sphinx_rtd_theme 3.1.0 dropped — without it a self-hosted document
     # resolves a version perfectly and shows it nowhere. Also the version shown
     # on the PDF title page/running header below (`version`/`release` feed
-    # both builders identically).
-    version = docrefs.resolve_version(scope=version_scope, repo_root=project_base)
-    # Outside ZDOCS_DRAFT_MODE (a released/stable deployment), pin the
-    # displayed version to what was actually reviewed/approved - the
-    # document's own `.. doc_control::` `:version:` stamp - rather than the
-    # git-describe value above, which keeps moving with every commit
-    # elsewhere in the repository even though this document's own content
-    # has not changed since it was approved. Under ZDOCS_DRAFT_MODE (a
-    # preview deployment), keep the git-describe value unchanged: a reader
-    # of a preview build benefits from seeing exactly how far past the
-    # last approved version it is.
-    if not _cmake_bool_env("ZDOCS_DRAFT_MODE"):
-        stamped_version = _doc_control_stamped_version(doc_dir)
-        if stamped_version:
-            version = stamped_version
+    # both builders identically) and, via `doc_control_base_version` below, the
+    # `.. doc_control::` table's own "Base Version" row.
+    #
+    # base_version is the document's own declared version - the `:version:`
+    # option of its `.. doc_control::` directive, the human-curated source of
+    # truth for both a developer's local build and CI alike - falling back to
+    # the scoped git-describe value (resolve_version) when no directive, or no
+    # explicit `:version:` override, exists yet.
+    base_version = docrefs.doc_control_base_version(doc_dir)
+    if not base_version:
+        base_version = docrefs.resolve_version(scope=version_scope, repo_root=project_base)
+
+    # VERSION_APPEND extends the base version without touching the document's
+    # own approved stamp - e.g. the scoped git-describe output, with
+    # base_version's own text stripped off its front (see
+    # resolve_version_append's docstring for why: otherwise a document
+    # whose base_version agrees with its last tag - the common case -
+    # would show it twice) - on a development-branch build, so a preview
+    # reader can see how far the content has drifted past the last
+    # approved version. An explicit `VERSION_APPEND` env var always wins (a
+    # developer's own manual stamp); otherwise it is auto-derived from the
+    # scoped git history only under ZDOCS_DRAFT_MODE (a development-branch
+    # build) - a stable-branch build leaves it empty, so its displayed
+    # "full version" is exactly the base version.
+    #
+    # compose_full_version() is the SAME function CI tooling uses (e.g. the
+    # `full-version` CLI command, for naming a PDF file) to compute this
+    # identical value without running Sphinx - one implementation, so the
+    # two cannot silently disagree about what a document's version is.
+    version_append = docrefs.resolve_version_append(
+        scope=version_scope,
+        repo_root=project_base,
+        auto=_cmake_bool_env("ZDOCS_DRAFT_MODE"),
+        base_version=base_version,
+    )
+    version = docrefs.compose_full_version(base_version, version_append)
 
     copyright_year = datetime.datetime.now().year
     holder = copyright_holder or author or project
@@ -332,6 +333,13 @@ def configure(
             "copyright": f"{copyright_year}, {holder}",
             "version": version,
             "release": version,
+            # The `.. doc_control::` directive's own fallback for its
+            # "Base Version" row when a document sets no explicit `:version:`
+            # (see doc_control.py) - the pre-VERSION_APPEND value, so a
+            # development-branch build's table still shows the approved/
+            # resolved base version, not the full version with its git-describe
+            # suffix attached.
+            "doc_control_base_version": base_version,
             # -- General configuration --------------------------------------
             "extensions": all_extensions,
             "exclude_patterns": ["_build", "Thumbs.db", ".DS_Store"],

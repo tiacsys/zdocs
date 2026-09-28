@@ -421,6 +421,41 @@ def _fallback_version(repo_root=None):
     return "v0.0-dev"
 
 
+def _describe_scope(scope, repo_root):
+    """``git describe --tags --match "<scope>/*" --dirty``, with the leading
+    ``"<scope>/"`` stripped (``swds/0.1-3-gabc123`` -> ``0.1-3-gabc123``).
+
+    None on any error, or if nothing matches — never raises. No ``v`` in the
+    match pattern: release tags are ``<document-id>/<version>`` (e.g.
+    ``swds/1.0``), per SOP-DOCCTL's "Released Versions" — not
+    ``<document-id>/v<version>``. ``scope == "/"`` describes the whole repo
+    (no ``--match``) instead of a single document's own namespace.
+    """
+    try:
+        if scope == "/":
+            described = subprocess.check_output(
+                ["git", "describe", "--tags", "--dirty"],
+                cwd=repo_root,
+                text=True,
+                stderr=subprocess.DEVNULL,
+            ).strip()
+        else:
+            described = subprocess.check_output(
+                ["git", "describe", "--tags", "--match", f"{scope}/*", "--dirty"],
+                cwd=repo_root,
+                text=True,
+                stderr=subprocess.DEVNULL,
+            ).strip()
+    except Exception:
+        return None
+    if not described:
+        return None
+    prefix = f"{scope}/"
+    if described.startswith(prefix):
+        described = described[len(prefix) :]
+    return described
+
+
 def resolve_version(*, scope=None, project=None, repo_root=None, west=None):
     """Resolve a document's displayed version. Single shared implementation.
 
@@ -428,9 +463,9 @@ def resolve_version(*, scope=None, project=None, repo_root=None, west=None):
     ``version`` CLI subcommand). Resolution order:
 
       1. The ``VERSION`` env var (CI / reproducible-build escape hatch) wins.
-      2. ``scope``: ``git -C <repo_root> describe --tags --match "<scope>/v*"
+      2. ``scope``: ``git -C <repo_root> describe --tags --match "<scope>/*"
          --dirty``; the leading ``"<scope>/"`` is stripped so the version
-         displays clean (``proj/v0.1-dirty`` -> ``v0.1-dirty``).
+         displays clean (``proj/0.1-dirty`` -> ``0.1-dirty``).
       3. ``project``: a west project name — its path is resolved via
          ``west list --format {abspath} <project>`` (run in the west topdir),
          then
@@ -446,29 +481,8 @@ def resolve_version(*, scope=None, project=None, repo_root=None, west=None):
     if version:
         return version.strip()
     if scope:
-        try:
-            if scope == "/":
-                described = subprocess.check_output(
-                    ["git", "describe", "--tags", "--dirty"],
-                    cwd=repo_root,
-                    text=True,
-                    stderr=subprocess.DEVNULL,
-                ).strip()
-            else:
-                described = subprocess.check_output(
-                    ["git", "describe", "--tags", "--match", f"{scope}/v*", "--dirty"],
-                    cwd=repo_root,
-                    text=True,
-                    stderr=subprocess.DEVNULL,
-                ).strip()
-        except Exception:
-            return _fallback_version(repo_root)
-        if not described:
-            return _fallback_version(repo_root)
-        prefix = f"{scope}/"
-        if described.startswith(prefix):
-            described = described[len(prefix) :]
-        return described
+        described = _describe_scope(scope, repo_root)
+        return described if described is not None else _fallback_version(repo_root)
 
     if project:
         try:
@@ -491,6 +505,93 @@ def resolve_version(*, scope=None, project=None, repo_root=None, west=None):
         return described
 
     return _fallback_version(repo_root)
+
+
+_DOC_CONTROL_BLOCK_RE = re.compile(
+    r"^\.\. doc_control::\s*\n((?:[ \t]+:\S+:.*\n)+)", re.MULTILINE
+)
+_DOC_CONTROL_VERSION_RE = re.compile(r"^[ \t]+:version:\s*(\S+)", re.MULTILINE)
+
+
+def doc_control_base_version(doc_dir):
+    """A document's own declared "base version" - the ``:version:`` option of
+    its ``.. doc_control::`` directive - read directly from its RST source.
+
+    Shared by ``zdocs_conf.configure()`` (which runs before Sphinx has parsed
+    anything, so it cannot reuse the directive's own option handling) and any
+    CI tooling that needs the same value outside a Sphinx build entirely (e.g.
+    to name a PDF file) - a single implementation, so the two cannot disagree
+    about what a document's own approved version is.
+
+    None if no directive, or no explicit ``:version:`` override, is found (the
+    directive then defaults to the resolved git-tag version itself, so there
+    would be nothing to pin to).
+    """
+    for rst in sorted(Path(doc_dir).rglob("*.rst")):
+        text = rst.read_text(encoding="utf-8", errors="replace")
+        m = _DOC_CONTROL_BLOCK_RE.search(text)
+        if not m:
+            continue
+        vm = _DOC_CONTROL_VERSION_RE.search(m.group(1))
+        if vm:
+            return vm.group(1).strip()
+    return None
+
+
+def resolve_version_append(*, scope=None, repo_root=None, auto=False, base_version=None):
+    """The optional suffix that extends a document's base version into its
+    displayed "full version" - e.g. ``-3-gabc123`` from a scoped
+    ``git describe``, showing a preview reader how far the content has
+    drifted past the last approved/tagged version.
+
+    Resolution order:
+
+      1. The ``VERSION_APPEND`` env var - an explicit injection, e.g. a
+         developer's own manual build stamp, or set by a CI job - always wins.
+      2. If ``auto`` (a development-branch build) and ``scope`` is given,
+         the scoped ``git describe`` output (see ``_describe_scope`` / the
+         same convention ``resolve_version``'s scope branch uses), with
+         ``base_version`` stripped off its front if present. ``git
+         describe --match "<scope>/*"`` returns the WHOLE matched tag's own
+         version text as part of its output (``0.1-3-gabc123`` for a tag
+         ``<scope>/0.1``, taken 3 commits further) - joining that whole
+         string onto ``base_version`` unmodified would double the version
+         number (``0.1+0.1-3-gabc123``) whenever the two agree, which is
+         the common case (the tag IS this document's approved version).
+         Only the part past that prefix - here ``-3-gabc123`` - is new
+         information ``base_version`` does not already carry.
+      3. Otherwise empty - a stable-branch build (``auto=False``) never
+         appends anything on its own, so its full version is exactly the
+         base version.
+
+    Never raises, and never falls back to a synthetic value the way
+    ``resolve_version`` does: an append is optional context, not something
+    that must always show a value.
+    """
+    override = os.environ.get("VERSION_APPEND")
+    if override is not None:
+        return override.strip()
+    if not auto or not scope:
+        return ""
+    described = _describe_scope(scope, repo_root)
+    if not described:
+        return ""
+    if base_version and described.startswith(base_version):
+        described = described[len(base_version) :].lstrip("-")
+    return described
+
+
+def compose_full_version(base_version, version_append):
+    """The single "full version" composition - base version, plus the
+    optional append - shared by every caller (``zdocs_conf.configure()``
+    for the HTML sidebar and PDF title page/header, and CI tooling such as
+    the ``full-version`` CLI command for naming a PDF file) so they cannot
+    independently drift into disagreeing about what a document's version
+    is: previously each re-implemented the same one-line f-string, and it
+    is exactly the kind of duplication that lets two call sites disagree
+    silently.
+    """
+    return f"{base_version}+{version_append}" if version_append else base_version
 
 
 class Refs:
@@ -1094,6 +1195,42 @@ def _cli(argv=None):
         "--west", metavar="DIR", default=None, help="west workspace topdir (for version_project)"
     )
 
+    p_full_version = sub.add_parser(
+        "full-version",
+        help="print a document's full version (base version + VERSION_APPEND)",
+        description="Compose a document's full version exactly as zdocs_conf.configure() "
+        "does: its own doc_control `:version:` stamp (falling back to the git-derived "
+        "`version` subcommand's value), plus VERSION_APPEND - an explicit env override, "
+        "or (with --draft) the scoped `git describe` output. For CI tooling (e.g. naming "
+        "a PDF file) that needs the same value the HTML/PDF build itself displayed, "
+        "without running Sphinx.",
+    )
+    p_full_version.add_argument(
+        "doc_id", help="registry id of this document, taken verbatim, e.g. widget"
+    )
+    p_full_version.add_argument(
+        "--registry",
+        metavar="documents.yaml",
+        required=True,
+        help="path to the document registry (documents.yaml)",
+    )
+    p_full_version.add_argument(
+        "--repo-root",
+        metavar="DIR",
+        default=None,
+        help="path to the consuming project's git root (for version_scope)",
+    )
+    p_full_version.add_argument(
+        "--west", metavar="DIR", default=None, help="west workspace topdir (for version_project)"
+    )
+    p_full_version.add_argument(
+        "--draft",
+        action="store_true",
+        help="auto-derive VERSION_APPEND from the scoped git describe when not "
+        "explicitly set (a development-branch build); omit on a stable-branch build "
+        "so the full version is exactly the base version",
+    )
+
     args = parser.parse_args(argv)
 
     if args.command == "tagfiles":
@@ -1114,6 +1251,20 @@ def _cli(argv=None):
             west=args.west,
         )
         sys.stdout.write(ver)
+    elif args.command == "full-version":
+        meta = _registry(args.registry)["documents"].get(args.doc_id, {})
+        scope = meta.get("version_scope")
+        doc_dir = Path(args.registry).resolve().parent / meta.get("doc_dir", args.doc_id)
+        base_version = doc_control_base_version(doc_dir) or resolve_version(
+            scope=scope,
+            project=meta.get("version_project"),
+            repo_root=args.repo_root,
+            west=args.west,
+        )
+        version_append = resolve_version_append(
+            scope=scope, repo_root=args.repo_root, auto=args.draft, base_version=base_version
+        )
+        sys.stdout.write(compose_full_version(base_version, version_append))
 
 
 if __name__ == "__main__":

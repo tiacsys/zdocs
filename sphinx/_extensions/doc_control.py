@@ -119,11 +119,17 @@ class DocCtrlDirective(Directive):
         data["document_id"] = self._extract_document_id()
         data["title"] = self._determine_doc_title()
 
-        # Default the version to the document's git-tag-derived conf version
-        # (same value shown in the sidebar). `:version:` overrides it.
+        # Default the "Base Version" to the document's own resolved base
+        # version (doc_control_base_version, set by zdocs_conf.configure() -
+        # NOT `env.config.version`, which is the full version with any
+        # VERSION_APPEND suffix already attached; the table must show the
+        # approved/resolved base, not a development-branch build's git-describe
+        # extension). `:version:` overrides it. Falls back to `env.config.version`
+        # for a standalone use of this extension (no zdocs_conf), where
+        # doc_control_base_version defaults to "".
         if "version" not in data:
             env = self.state.document.settings.env
-            data["version"] = env.config.version or "unknown"
+            data["version"] = env.config.doc_control_base_version or env.config.version or "unknown"
 
         if "author" not in data:
             data["author"] = "not-authored-yet"
@@ -185,7 +191,14 @@ class DocCtrlDirective(Directive):
             if key in data:
                 row = nodes.row()
 
-                label = key.replace("_", " ").title()
+                # "Base Version", not the generic "Version": this row is the
+                # document's own approved/resolved version, before any
+                # VERSION_APPEND suffix a development-branch build attaches to
+                # what is actually displayed elsewhere (sidebar, PDF, filename).
+                if key == "version":
+                    label = "Base Version"
+                else:
+                    label = key.replace("_", " ").title()
                 value = data[key]
 
                 row += nodes.entry("", nodes.paragraph(text=label))
@@ -374,6 +387,16 @@ def setup(app):
     # zdocs_conf) leaves it at its default "", which _extract_document_id()
     # treats as "fall back to the docname basename" -- see decision 3.
     app.add_config_value("zdocs_doc_id", "", "env")
+
+    # The "Base Version" row's fallback when a document sets no explicit
+    # `:version:` (decision mirrors zdocs_doc_id above). zdocs_conf.configure()
+    # sets this to the document's resolved base version - BEFORE any
+    # VERSION_APPEND suffix - so a development-branch build's table still
+    # shows the approved/resolved base, not the full version shown elsewhere
+    # (sidebar, PDF, filename). A standalone document (no zdocs_conf) leaves
+    # it at its default "", which falls back to `env.config.version` (see
+    # _add_missing_attributes).
+    app.add_config_value("doc_control_base_version", "", "env")
 
     # Release stage gate for `.. ifconfig:: releaselevel not in (...)` blocks.
     # Set as a plain variable in conf.py (see conf_common.configure()) — must
