@@ -67,6 +67,14 @@ list(APPEND CMAKE_MODULE_PATH ${ZDOCS_CMAKE_DIR})
 #                            theme so they win.
 #   ZDOCS_DOC_BASE_URL       (optional) base URL the deploy tree is served under,
 #                            used for absolute cross-document need links.
+#   ZDOCS_DRAFT_MODE         (optional) any non-empty value adds a fixed
+#                            "development version" banner (draft.css) to every
+#                            HTML page, and keeps the displayed version
+#                            git-describe-based (commits/sha past the last
+#                            release tag) instead of pinning it to the
+#                            approved `.. doc_control::` `:version:` stamp —
+#                            for CI to flag a non-released deployment (e.g. a
+#                            feature-branch preview).
 #   ZDOCS_SPHINX_EXTRA_ENV   (optional) extra VAR=value entries passed to every
 #                            sphinx-build, for a consumer whose conf.py needs
 #                            something the engine knows nothing about.

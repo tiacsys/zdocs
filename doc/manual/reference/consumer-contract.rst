@@ -107,6 +107,19 @@ from outside your ``CMakeLists.txt``.
    every cross-document Sphinx link at build time, so changing it later means
    rebuilding.
 
+``ZDOCS_DRAFT_MODE``
+   Default empty. Any non-empty value has two effects, both for CI to set
+   on a non-released deployment (e.g. a feature-branch preview) so it is
+   never mistaken for the stable one:
+
+   - adds a fixed "development version" banner (``draft.css``, top and
+     bottom of every HTML page);
+   - keeps the displayed version (sidebar and PDF title page/header)
+     git-describe-based — commits and sha past the last release tag —
+     instead of pinning it to the document's own approved
+     ``.. doc_control::`` ``:version:`` stamp, which is what a document
+     without this set shows.
+
 ``ZDOCS_TWISTER_OUT``
    Default empty. Directory holding a :term:`twister` run's own output
    (``twister.json``, ``twister_report.xml``, per-scenario ``handler.log``),

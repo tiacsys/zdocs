@@ -1,0 +1,44 @@
+/* Draft deployment banner for development builds */
+:root {
+  --draft-banner-height: 3rem;
+}
+
+html,
+body {
+  padding-top: var(--draft-banner-height) !important;
+  padding-bottom: var(--draft-banner-height) !important;
+}
+
+body::before,
+body::after {
+  content: "This is a development version";
+  position: fixed;
+  left: 0;
+  right: 0;
+  height: var(--draft-banner-height);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 99999;
+  background-color: #fff0f0;
+  color: #a80000;
+  font-weight: bold;
+  text-align: center;
+  box-shadow: 0 2px 4px rgba(168, 0, 0, 0.2);
+  box-sizing: border-box;
+}
+
+body::before {
+  top: 0;
+  border-bottom: 2px solid #a80000;
+}
+
+body::after {
+  bottom: 0;
+  border-top: 2px solid #a80000;
+}
+
+.wy-nav-top,
+.wy-nav-side {
+  top: var(--draft-banner-height) !important;
+}
