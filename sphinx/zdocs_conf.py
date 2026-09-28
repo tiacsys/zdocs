@@ -26,14 +26,17 @@ conflict with a docset wide `conf_common`` the user might have on the path as we
     Build tree, deploy tree, and the URL the deploy tree is served under.
 ``ZDOCS_DRAFT_MODE``
     Set (to a CMake-true value) to add a "development version" banner to
-    every HTML page. See :func:`_cmake_bool_env` for why this is not a
-    plain truthy-string check.
+    every HTML page, and to keep the displayed version git-describe-based
+    instead of pinned to the document's own approved
+    ``.. doc_control::`` ``:version:`` stamp. See :func:`_cmake_bool_env`
+    for why this is not a plain truthy-string check.
 """
 
 from __future__ import annotations
 
 import datetime
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -63,6 +66,34 @@ _CMAKE_FALSY = {"", "0", "off", "no", "false", "n", "ignore", "notfound"}
 
 def _cmake_bool_env(name):
     return os.environ.get(name, "").strip().lower() not in _CMAKE_FALSY
+
+
+_DOC_CONTROL_BLOCK_RE = re.compile(
+    r"^\.\. doc_control::\s*\n((?:[ \t]+:\S+:.*\n)+)", re.MULTILINE
+)
+_DOC_CONTROL_VERSION_RE = re.compile(r"^[ \t]+:version:\s*(\S+)", re.MULTILINE)
+
+
+def _doc_control_stamped_version(doc_dir):
+    """This document's own declared version - the ``:version:`` option of
+    its ``.. doc_control::`` directive - read directly from its RST source.
+
+    Conf.py runs before Sphinx has parsed anything, so this cannot reuse
+    the directive's own option handling; it is a plain text scan instead,
+    mirroring what deploy tooling outside this engine does for the same
+    reason. None if no directive, or no explicit ``:version:`` override, is
+    found (the directive then defaults to the resolved version itself, so
+    there would be nothing to pin to).
+    """
+    for rst in sorted(Path(doc_dir).rglob("*.rst")):
+        text = rst.read_text(encoding="utf-8", errors="replace")
+        m = _DOC_CONTROL_BLOCK_RE.search(text)
+        if not m:
+            continue
+        vm = _DOC_CONTROL_VERSION_RE.search(m.group(1))
+        if vm:
+            return vm.group(1).strip()
+    return None
 
 #: Defines the macro ``doc_control`` emits for the PDF-only sign-off block.
 #:
@@ -188,8 +219,23 @@ def configure(
     #
     # Displayed by _templates/layout.html, which restores the sidebar version
     # block sphinx_rtd_theme 3.1.0 dropped — without it a self-hosted document
-    # resolves a version perfectly and shows it nowhere.
+    # resolves a version perfectly and shows it nowhere. Also the version shown
+    # on the PDF title page/running header below (`version`/`release` feed
+    # both builders identically).
     version = docrefs.resolve_version(scope=version_scope, repo_root=project_base)
+    # Outside ZDOCS_DRAFT_MODE (a released/stable deployment), pin the
+    # displayed version to what was actually reviewed/approved - the
+    # document's own `.. doc_control::` `:version:` stamp - rather than the
+    # git-describe value above, which keeps moving with every commit
+    # elsewhere in the repository even though this document's own content
+    # has not changed since it was approved. Under ZDOCS_DRAFT_MODE (a
+    # preview deployment), keep the git-describe value unchanged: a reader
+    # of a preview build benefits from seeing exactly how far past the
+    # last approved version it is.
+    if not _cmake_bool_env("ZDOCS_DRAFT_MODE"):
+        stamped_version = _doc_control_stamped_version(doc_dir)
+        if stamped_version:
+            version = stamped_version
 
     copyright_year = datetime.datetime.now().year
     holder = copyright_holder or author or project
