@@ -24,6 +24,10 @@ conflict with a docset wide `conf_common`` the user might have on the path as we
     no cross-references, which is a supported configuration, not a degraded one.
 ``ZDOCS_DOC_BUILD_DIR``, ``ZDOCS_DOC_DEPLOY_DIR``, ``ZDOCS_DOC_BASE_URL``
     Build tree, deploy tree, and the URL the deploy tree is served under.
+``ZDOCS_DRAFT_MODE``
+    Set (to a CMake-true value) to add a "development version" banner to
+    every HTML page. See :func:`_cmake_bool_env` for why this is not a
+    plain truthy-string check.
 """
 
 from __future__ import annotations
@@ -52,6 +56,18 @@ if _zephyr_base:
 import docrefs  # noqa: E402  (needs the sys.path above)
 from doc_control import latex_escape  # noqa: E402  (same)
 from need_layouts import links_line, need_layout  # noqa: E402,F401  (for conf.py)
+
+# CMake BOOL cache variables threaded through SPHINX_ENV (see sphinx.cmake)
+# arrive here as their literal CMake string form, not as "set or unset" -
+# an OFF default becomes the env var text "OFF", which `if os.environ.get(
+# ...)` would read as a non-empty, truthy Python string. Falsy spellings
+# per CMake's own boolean semantics (case-insensitive), so a consumer's
+# `set(FOO OFF CACHE BOOL ...)` default actually means off here too.
+_CMAKE_FALSY = {"", "0", "off", "no", "false", "n", "ignore", "notfound"}
+
+
+def _cmake_bool_env(name):
+    return os.environ.get(name, "").strip().lower() not in _CMAKE_FALSY
 
 #: Defines the macro ``doc_control`` emits for the PDF-only sign-off block.
 #:
