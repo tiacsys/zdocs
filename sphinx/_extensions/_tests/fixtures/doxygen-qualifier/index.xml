@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<doxygenindex version="1.16.1" xml:lang="en-US">
+  <compound refid="group__m1__module" kind="group">
+    <name>m1_module</name>
+  </compound>
+  <compound refid="group__m1____workqueue__api" kind="group">
+    <name>m1__workqueue_api</name>
+  </compound>
+  <compound refid="group__m2__module" kind="group">
+    <name>m2_module</name>
+  </compound>
+  <compound refid="group__m2____workqueue__api" kind="group">
+    <name>m2__workqueue_api</name>
+  </compound>
+</doxygenindex>

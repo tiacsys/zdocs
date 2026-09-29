@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<doxygen>
+  <compounddef id="group__m2____workqueue__api" kind="group">
+    <compoundname>m2__workqueue_api</compoundname>
+    <title>workqueue_api ZTest suite</title>
+    <memberdef kind="function" id="group__m2____workqueue__api_1a001">
+      <name>test_workq_start</name>
+      <briefdescription><para>test_workq_start in m2.</para></briefdescription>
+      <detaileddescription><para>
+          <xrefsect id="testids_1testidsm21">
+            <xreftitle>Test ID</xreftitle>
+            <xrefdescription><para>TSPEC-WQ-002</para></xrefdescription>
+          </xrefsect>
+      </para></detaileddescription>
+      <location file="m2/main.c" line="10"/>
+    </memberdef>
+    <memberdef kind="function" id="group__m2____workqueue__api_1a002">
+      <name>test_shared</name>
+      <briefdescription><para>test_shared in m2.</para></briefdescription>
+      <detaileddescription><para>
+      </para></detaileddescription>
+      <location file="m2/main.c" line="20"/>
+    </memberdef>
+  </compounddef>
+</doxygen>
