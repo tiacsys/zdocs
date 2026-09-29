@@ -13,19 +13,65 @@
  * depend on a stylesheet the engine did not ship.
  */
 
-/* Sidebar version, under the project title (see _templates/layout.html).
- *
- * sphinx_rtd_theme 3.1.0 still styles `.wy-side-nav-search` for white text on
- * the header background, but no longer carries a rule for `div.version` — the
- * old one went with the block itself. These values reproduce the theme's
- * historical appearance rather than inventing one, so a document looks the way
- * an RTD-themed document is expected to look.
+/* With `logo_only: True` (see conf_common.py), the theme's own
+ * layout.html drops the `icon icon-home` class from the logo/home link
+ * (it only adds `{{ project }}` text alongside that class, which
+ * logo_only turns off) — but `icon` is also what makes the theme's own
+ * `.wy-side-nav-search>a.icon{display:block}` rule apply. Without it,
+ * the link falls back to the theme's generic `.wy-side-nav-search>a{
+ * display:inline-block}`: an inline-block box sizes to fit its content,
+ * and the <img class="logo"> inside is itself sized via
+ * `max-width:100%` of THIS now-shrink-to-fit box — a percentage with no
+ * definite width to resolve against, which collapses the image to a
+ * few pixels rather than the sidebar's width. Restated here at the same
+ * selector shape as the theme's own `.icon` rule, loaded after
+ * theme.css, wins without needing the class or `!important`.
  */
-.wy-side-nav-search > div.zdocs-version {
-    margin-top: -0.4em;
-    margin-bottom: 0.8em;
-    color: rgba(255, 255, 255, 0.6);
-    font-size: 90%;
+.wy-side-nav-search > a {
+    display: block;
+}
+
+/* Per-document headline, heading the sidebar's own table of contents (see
+ * _templates/layout.html's `menu` block) — deliberately NOT in the static
+ * top-left icon/home area (that block now shows only the theme's own
+ * logo, linking to the registry's landing page, constant across every
+ * document in a deployed set): which document is open belongs next to the
+ * tree of ITS OWN pages, not fixed alongside chrome that never changes.
+ *
+ * It's an <a> (links to this document's own root — see layout.html), not
+ * a <div>: `display: block` + the reset pair below keep it looking like
+ * the plain headline it was before that change, not a hyperlink.
+ *
+ * Colours follow the same translucent-white-on-dark convention as the
+ * reference-group rules below, for the same reason: the sidebar
+ * background is a consumer/theme choice, not a fixed value to hardcode
+ * against.
+ */
+.wy-nav-side .zdocs-doc-headline {
+    display: block;
+    margin: 0 0 12px;
+    padding: 0 1.618em 12px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+    background: rgba(0, 0, 0, 0.35);
+    text-decoration: none;
+}
+
+.wy-nav-side .zdocs-doc-headline:hover {
+    text-decoration: none;
+    background: rgba(0, 0, 0, 0.5);
+}
+
+.wy-nav-side .zdocs-doc-headline-title {
+    font-size: 1.1em;
+    font-weight: 700;
+    line-height: 1.3;
+    color: #fff;
+}
+
+.wy-nav-side .zdocs-doc-headline-meta {
+    margin-top: 0.2em;
+    font-size: 85%;
+    color: rgba(255, 255, 255, 0.75);
 }
 
 /* ---------------------------------------------------------------------------
