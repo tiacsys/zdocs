@@ -1,0 +1,13 @@
+PROJECT_NAME = zdocs-symbol-needs-fixture
+INPUT = src
+FILE_PATTERNS = *.h *.dox
+OUTPUT_DIRECTORY = out
+GENERATE_HTML = NO
+GENERATE_LATEX = NO
+GENERATE_XML = YES
+GENERATE_REQUIREMENTS = YES
+QUIET = YES
+STRIP_FROM_PATH = src
+# Regenerate: doxygen Doxyfile (with queue.h and req.dox under src/), then copy
+# index.xml, group__queue__apis.xml, queue_8h.xml and req_8dox.xml from out/xml here.
+ALIASES += "kconfig_depends{1}=\xrefitem kconfig_depends \"Depends on\" \"Kconfig dependencies\" \1"

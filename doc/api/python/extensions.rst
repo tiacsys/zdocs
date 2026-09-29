@@ -49,6 +49,22 @@ directives.
 .. automodule:: test_module
    :members:
 
+``symbol_needs``
+------------------
+
+The ``.. symbolneeds::`` directive.
+
+.. automodule:: symbol_needs
+   :members:
+
+``input_tracking``
+--------------------
+
+Re-reads a document when an input from outside the source tree changes.
+
+.. automodule:: input_tracking
+   :members:
+
 ``xref_builder``
 ------------------
 

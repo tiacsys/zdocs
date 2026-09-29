@@ -1,0 +1,7 @@
+/**
+\requirement REQ-QUEUE-1 Queue initialisation
+The kernel shall initialise a queue.
+
+\requirement REQ-QUEUE-2 Queue append
+The kernel shall append an item to a queue.
+*/

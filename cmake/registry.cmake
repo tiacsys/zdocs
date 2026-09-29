@@ -307,6 +307,15 @@ function(add_docs_from_registry)
         endforeach()
       endif()
 
+      # symbol_needs: reads the Doxygen document's deploy/xml/<id>/ the same
+      # way testmodule does, so the same stage-2 edge.
+      string(JSON _zdocs_symbol_dox_src GET "${_zdocs_entry}" "symbol_needs_doxygen_source")
+      if(NOT _zdocs_symbol_dox_src STREQUAL "")
+        foreach(_zdocs_builder ${_zdocs_builders})
+          add_dependencies(${_zdocs_id}-${_zdocs_builder} ${_zdocs_symbol_dox_src})
+        endforeach()
+      endif()
+
       string(JSON _zdocs_testmodule_spec GET "${_zdocs_entry}" "testmodule_spec")
       if(NOT _zdocs_testmodule_spec STREQUAL "")
         add_dependencies(${_zdocs_id}-index ${_zdocs_testmodule_spec}-index)

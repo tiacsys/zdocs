@@ -147,6 +147,50 @@ _KINDS = ("sphinx", "doxygen", "external", "sphinx-external", "doxygen-external"
 _TESTMODULE_KEYS = ("doxygen_source", "api_reference", "spec")
 
 
+#: Allowed keys inside a document's ``symbol_needs:`` block. ``doxygen_source``
+#: is required: it is the only thing the block says.
+_SYMBOL_NEEDS_KEYS = ("doxygen_source",)
+
+
+def _validate_symbol_needs(doc_id, kind, block, documents):
+    """Raise ``ValueError`` unless ``symbol_needs:`` is usable on ``doc_id``."""
+    if kind != "sphinx":
+        raise ValueError(
+            f"docrefs: document '{doc_id}' has 'symbol_needs:' but is kind "
+            f"'{kind}' — only a 'kind: sphinx' document emits needs"
+        )
+    if not isinstance(block, dict):
+        raise ValueError(
+            f"docrefs: document '{doc_id}' has symbol_needs '{block}' — use a "
+            f"mapping such as '{{doxygen_source: <kind: doxygen document id>}}'"
+        )
+    unknown = sorted(set(block) - set(_SYMBOL_NEEDS_KEYS))
+    if unknown:
+        raise ValueError(
+            f"docrefs: document '{doc_id}' has unknown key(s) {unknown} in its "
+            f"'symbol_needs:' block — allowed keys are {_SYMBOL_NEEDS_KEYS}"
+        )
+    ref_id = block.get("doxygen_source")
+    if ref_id is None:
+        raise ValueError(
+            f"docrefs: document '{doc_id}' has 'symbol_needs:' without "
+            f"'doxygen_source:' — name the kind: doxygen document whose XML "
+            f"holds the symbols"
+        )
+    ref_meta = documents.get(ref_id)
+    if ref_meta is None:
+        raise ValueError(
+            f"docrefs: document '{doc_id}' has symbol_needs.doxygen_source: "
+            f"'{ref_id}', which does not exist in the registry"
+        )
+    ref_kind = ref_meta.get("kind", "sphinx")
+    if ref_kind != "doxygen":
+        raise ValueError(
+            f"docrefs: document '{doc_id}' has symbol_needs.doxygen_source: "
+            f"'{ref_id}', which is kind '{ref_kind}', not 'doxygen'"
+        )
+
+
 #: Allowed keys inside a document's ``doxygen_tag:`` block.
 _DOXYGEN_TAG_KEYS = ("types",)
 
@@ -268,6 +312,11 @@ def _validate(data):
         doxygen_tag = meta.get("doxygen_tag")
         if doxygen_tag is not None:
             _validate_doxygen_tag(doc_id, meta, kind, doxygen_tag)
+
+        # -- symbol_needs: one need per API symbol with \satisfies --------
+        symbol_needs = meta.get("symbol_needs")
+        if symbol_needs is not None:
+            _validate_symbol_needs(doc_id, kind, symbol_needs, data.get("documents", {}))
 
         # -- testmodule: sub-block (step 27) -----------------------------
         #
@@ -593,6 +642,7 @@ class Refs:
         rel_urls=None,
         deploy_dirs=None,
         testmodule=None,
+        symbol_needs=None,
     ):
         self.reference_groups = reference_groups
         self.intersphinx_mapping = intersphinx_mapping
@@ -611,6 +661,11 @@ class Refs:
         #: corresponding ``testmodule:`` field is absent, e.g. no
         #: ``api_reference:``).
         self.testmodule = testmodule
+        #: This document's own resolved ``symbol_needs:`` block, or ``None``
+        #: when it has none (then the ``symbol_needs`` extension is not
+        #: loaded). A dict with ``xml_dir`` (the Doxygen document's XML) and
+        #: ``doxygen_url`` (its HTML, relative to this document's root).
+        self.symbol_needs = symbol_needs
 
 
 def _resolve_external_url(url, external_base_url):
@@ -909,6 +964,15 @@ def load(this_doc=None, registry=None):
             "needs_json": needs_json,
         }
 
+    symbol_needs = None
+    symbol_block = this_meta.get("symbol_needs")
+    if symbol_block is not None:
+        source = symbol_block["doxygen_source"]
+        symbol_needs = {
+            "xml_dir": str(deploy / "xml" / source),
+            "doxygen_url": rel_urls.get(source, ""),
+        }
+
     return Refs(
         reference_groups,
         intersphinx_mapping,
@@ -919,6 +983,7 @@ def load(this_doc=None, registry=None):
         rel_urls=rel_urls,
         deploy_dirs=deploy_dirs,
         testmodule=testmodule,
+        symbol_needs=symbol_needs,
     )
 
 
@@ -1176,6 +1241,10 @@ def manifest(registry=None):
         never its own spec), so this cannot cycle; it is deliberately NOT
         generalised to every needs-importer/publisher pair, which CAN cycle
         and is its own, deferred step.
+      * ``symbol_needs_doxygen_source`` — this document's own
+        ``symbol_needs:`` block's ``doxygen_source`` (``None`` without the
+        block). Wired like ``testmodule_doxygen_source``: every stage-2
+        builder of the document waits for that Doxygen document.
       * ``doxygen_tag`` — ``True`` when the document declares
         ``doxygen_tag:``. ``add_docs_from_registry`` then adds the
         ``<doc>-needstag`` target (see :func:`needs_tag`).
@@ -1195,6 +1264,9 @@ def manifest(registry=None):
                 "remote_tagfile": meta.get("remote-tagfile"),
                 "testmodule_doxygen_source": testmodule.get("doxygen_source"),
                 "testmodule_spec": testmodule.get("spec"),
+                "symbol_needs_doxygen_source": (meta.get("symbol_needs") or {}).get(
+                    "doxygen_source"
+                ),
                 "doxygen_tag": meta.get("doxygen_tag") is not None,
             }
         )

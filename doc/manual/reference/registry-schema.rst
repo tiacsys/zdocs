@@ -268,6 +268,36 @@ Each entry in ``documents:``, keyed by its id:
    ``crossref: false`` on either side removes the entry, as for any tag file.
    Needs Doxygen 1.16 or newer.
 
+``symbol_needs``
+   Opt-in sub-block; loads the ``symbolneeds`` directive
+   (:doc:`directives-and-roles`) into this document, which emits one need per
+   API symbol that carries a Doxygen ``\satisfies``, linked to the
+   requirements it names. One key, required:
+
+   .. code-block:: yaml
+
+      api-documentation:
+        kind: sphinx
+        builders: [html]
+        needs:
+          source: json                     # so peers import the symbol needs
+        symbol_needs:
+          doxygen_source: dox-safety-api   # a kind: doxygen document
+
+   ``doxygen_source`` names the ``kind: doxygen`` document whose XML
+   (``deploy/xml/<id>/``, so the top-level ``doxygen_xml: true`` is needed)
+   holds the symbols; every stage-2 builder of this document waits for it, as
+   for ``testmodule.doxygen_source``. Its HTML is what each need links to.
+   Only a ``kind: sphinx`` document may carry the block; a missing or unknown
+   key, a non-mapping value, or a ``doxygen_source`` that is not an existing
+   ``kind: doxygen`` document is a configure-time error.
+
+   Add ``needs: {source: json}`` as shown: it is what makes every peer import
+   the symbol needs, so a requirement authored in another document lists its
+   implementing symbols ("satisfied by", or whatever incoming name your
+   ``needs_config.toml`` gives the link) beside its verifying test cases.
+   Without the block, nothing changes: the extension is not loaded.
+
 ``testmodule``
    Opt-in sub-block (see :doc:`../explanation/testmodule-and-twister` and
    :doc:`directives-and-roles`); its presence is the sole trigger that loads

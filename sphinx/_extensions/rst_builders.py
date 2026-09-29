@@ -5,10 +5,10 @@
 """RST string builders — no Sphinx dependency."""
 
 # This file emits sphinx-needs directive/link names for the `case` /
-# `procedure` / `result` need-type roles and the `verifies` / `result_of` /
-# `covers` link roles via the `need_names` role->name mapping (zdocs step 26,
-# zdocs-design-twister.md §12), defaulting to the original literal names when
-# a role is absent from the mapping.
+# `procedure` / `result` / `implementation` need-type roles and the `verifies`
+# / `result_of` / `covers` / `satisfies` link roles via the `need_names`
+# role->name mapping (zdocs step 26, zdocs-design-twister.md §12), defaulting
+# to the literal names below when a role is absent from the mapping.
 import logging
 import re
 from collections import Counter
@@ -21,6 +21,7 @@ __all__ = [
     "build_need_rst",
     "build_procedure_need_rst",
     "build_result_rst",
+    "build_symbol_need_rst",
     "build_scenario_table",
 ]
 
@@ -43,6 +44,9 @@ _DEFAULT_NEED_NAMES = {
     "verifies": "verifies",
     "result_of": "result_of",
     "covers": "covers",
+    # symbolneeds: an API symbol, and the requirements it satisfies.
+    "implementation": "impl",
+    "satisfies": "satisfies",
 }
 
 
@@ -280,6 +284,45 @@ def _values_rst(r):
             ]
         lines.append("")
     return lines
+
+
+def symbol_need_id(name, need_names=None):
+    """The need id of API symbol ``name``: ``<TYPE>-<name>``, e.g. ``IMPL-k_queue_init``.
+
+    Prefixed with the consumer's own name for the need type, so the id says
+    what the need is in the project's vocabulary, and a symbol's need can never
+    collide with a requirement or test case of the same spelling.
+    """
+    prefix = re.sub(r"[^A-Za-z0-9]+", "_", _need_name(need_names, "implementation")).upper()
+    return f"{prefix}-{name}"
+
+
+def build_symbol_need_rst(info, need_names=None):
+    """Build the RST block for one API symbol's need (the ``implementation`` role).
+
+    ``info`` is a `doxygen_parser.parse_symbol` result. The requirements it
+    satisfies become the ``satisfies`` link, so each requirement's page lists
+    the symbol under the link's incoming name, beside its verifying test cases.
+    The kind, declaration and Doxygen page go in the body, where no field has
+    to be declared for them.
+    """
+    name = info["name"]
+    lines = [
+        f".. {_need_name(need_names, 'implementation')}:: {name}",
+        f"   :id: {symbol_need_id(name, need_names)}",
+    ]
+    if info["satisfies"]:
+        lines.append(f"   :{_need_name(need_names, 'satisfies')}: {'; '.join(info['satisfies'])}")
+    lines.append("")
+
+    kind = info["kind"] or "symbol"
+    head = f"{kind.capitalize()} ``{name}``"
+    if info["doxygen_url"]:
+        head = f"`{kind.capitalize()} {name} <{info['doxygen_url']}>`__"
+    lines += [f"   {head}" + (f" — {info['brief']}" if info["brief"] else ""), ""]
+    if info["source_file"]:
+        lines += [f"   **Declared in:** ``{info['source_file']}``", ""]
+    return "\n".join(lines)
 
 
 def build_scenario_table(testcase_yaml_path):
