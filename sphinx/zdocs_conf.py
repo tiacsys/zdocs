@@ -130,11 +130,22 @@ def configure(
     """
     doc_dir = Path(doc_dir)
     folder = doc_dir.name
-    project = project or folder.replace("-", " ").title()
 
     doc_id = os.environ.get("ZDOCS_DOC_ID", folder)
     project_base = _env_path("ZDOCS_PROJECT_BASE")
     registry = _env_path("ZDOCS_REGISTRY")
+
+    # `project` defaults to this document's own registry `title:` - the SAME
+    # field every OTHER document's cross-document nav link already displays
+    # for it (see docrefs.navlinks()'s `meta.get("title", doc_id)`) - not a
+    # name guessed from the folder, so a document cannot show one title to
+    # its siblings and a different one to itself. An explicit `project=`
+    # argument (a conf.py's own deliberate choice) still wins; the
+    # folder-derived guess is the last resort, for a standalone document
+    # with no registry at all.
+    if project is None and registry and registry.is_file():
+        project = docrefs._registry(registry)["documents"].get(doc_id, {}).get("title")
+    project = project or folder.replace("-", " ").title()
 
     # -- Extensions -----------------------------------------------------------
     #
@@ -495,7 +506,12 @@ def configure(
     namespace["html_css_files"] = ["zdocs-sphinx.css", "zdocs-needs.css"] + list(css_files or [])
     if refs is not None:
         # Consumed by the cross-document navigation in the page template.
-        namespace["html_context"] = {"reference_groups": refs.reference_groups}
+        namespace["html_context"]["reference_groups"] = refs.reference_groups
+        # Sidebar logo target (_templates/layout.html's `sidebartitle`
+        # override) — None when the registry declares no "landing" group,
+        # in which case the template falls back to the theme's own
+        # original target (this document's own root).
+        namespace["html_context"]["landing_url"] = refs.landing_url
 
     if refs is not None:
         # The XML and HTML of each Doxygen document, by registry id
