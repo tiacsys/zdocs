@@ -1,0 +1,126 @@
+<?xml version='1.0' encoding='UTF-8' standalone='no'?>
+<doxygen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="compound.xsd" version="1.16.1" xml:lang="en-US">
+  <compounddef id="group__queue__apis" kind="group">
+    <compoundname>queue_apis</compoundname>
+    <title>Queue APIs</title>
+    <sectiondef kind="func">
+      <memberdef kind="function" id="group__queue__apis_1ga7119309c1016c8ac5ea22768916c4b8a" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>void</type>
+        <definition>void k_queue_init</definition>
+        <argsstring>(struct k_queue *q)</argsstring>
+        <name>k_queue_init</name>
+        <param>
+          <type>struct k_queue *</type>
+          <declname>q</declname>
+        </param>
+        <satisfies>
+          <requirement refid="requirement_REQ-QUEUE-1"></requirement>
+        </satisfies>
+        <briefdescription>
+<para>Initialize a queue. </para>
+        </briefdescription>
+        <detaileddescription>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>q</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Address of the queue. </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="queue.h" line="19" column="6" declfile="queue.h" declline="19" declcolumn="6"/>
+      </memberdef>
+      <memberdef kind="function" id="group__queue__apis_1gada516dd86f02a060051af841a3dd4e93" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>void</type>
+        <definition>void k_queue_append</definition>
+        <argsstring>(struct k_queue *q, void *data)</argsstring>
+        <name>k_queue_append</name>
+        <param>
+          <type>struct k_queue *</type>
+          <declname>q</declname>
+        </param>
+        <param>
+          <type>void *</type>
+          <declname>data</declname>
+        </param>
+        <satisfies>
+          <requirement refid="requirement_REQ-QUEUE-1"></requirement>
+          <requirement refid="requirement_REQ-QUEUE-2"></requirement>
+        </satisfies>
+        <briefdescription>
+<para>Append an element to the end of a queue. </para>
+        </briefdescription>
+        <detaileddescription>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>q</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Address of the queue. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>data</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Address of the data item.</para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+<xrefsect id="kconfig_depends_1_kconfig_depends000001"><xreftitle>Depends on</xreftitle><xrefdescription><para>CONFIG_ASSERT </para>
+<para>(CONFIG_USERSPACE &amp;&amp; !CONFIG_NO_SYSCALLS) || CONFIG_TEST </para>
+</xrefdescription></xrefsect></para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="queue.h" line="32" column="6" declfile="queue.h" declline="32" declcolumn="6"/>
+      </memberdef>
+      <memberdef kind="function" id="group__queue__apis_1ga4eda70972099c1ce2f9f79599f3d3fbd" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>void</type>
+        <definition>void k_queue_cancel_wait</definition>
+        <argsstring>(struct k_queue *q)</argsstring>
+        <name>k_queue_cancel_wait</name>
+        <param>
+          <type>struct k_queue *</type>
+          <declname>q</declname>
+        </param>
+        <briefdescription>
+<para>Not annotated: must not become a need. </para>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="queue.h" line="44" column="6" declfile="queue.h" declline="44" declcolumn="6"/>
+      </memberdef>
+    </sectiondef>
+    <sectiondef kind="define">
+      <memberdef kind="define" id="group__queue__apis_1ga5b0c7ac7015ee26689868e2cee51d7bf" prot="public" static="no">
+        <name>K_QUEUE_MAX</name>
+        <initializer>8</initializer>
+        <satisfies>
+          <requirement refid="requirement_REQ-QUEUE-99"></requirement>
+        </satisfies>
+        <briefdescription>
+<para>Maximum number of items; references a UID no requirement defines. </para>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="queue.h" line="39" column="9" bodyfile="queue.h" bodystart="39" bodyend="-1"/>
+      </memberdef>
+    </sectiondef>
+    <briefdescription>
+<para>Queue kernel objects. </para>
+    </briefdescription>
+    <detaileddescription>
+    </detaileddescription>
+  </compounddef>
+</doxygen>

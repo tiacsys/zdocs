@@ -85,6 +85,14 @@ layout, not toggled from outside it.
    per-document (every document in a set is handed an import of every other's
    needs, so they all have to agree on what a need type means).
 
+   It must declare every need type, link and field the engine's directives
+   emit under the names you map their roles to: the test directives' three
+   types, three links and custom fields, and — for a document with a
+   ``symbol_needs:`` block — the ``implementation`` type and ``satisfies``
+   link (:doc:`directives-and-roles`). Declaring the ``satisfies`` link in
+   this project-wide file is also what lets a requirements document show the
+   link's incoming side.
+
    This variable is real and load-bearing — every sample and fixture in this
    repository that uses sphinx-needs sets it — but it is not mentioned
    alongside the others in ``cmake/zdocs.cmake``'s own "Consumer configuration"

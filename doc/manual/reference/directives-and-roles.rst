@@ -5,9 +5,10 @@ What a document author writes in RST. Every directive here is loaded for
 every document by :external+zdocs-api:py:func:`zdocs_conf.configure`, whether
 or not the document uses it — an extension list that varied by document would
 make the two build stages' configuration differ and invalidate the shared
-doctree cache. The ``testmodule``/``testreport``/``twisterinfo`` directives are
-the one exception: they load only for a document whose registry entry carries
-a ``testmodule:`` block (:doc:`registry-schema`).
+doctree cache. The ``testmodule``/``testreport``/``twisterinfo`` directives and
+``symbolneeds`` are the exceptions: they load only for a document whose
+registry entry carries a ``testmodule:`` or ``symbol_needs:`` block
+(:doc:`registry-schema`).
 
 ``.. doc_control::``
 --------------------
@@ -192,6 +193,59 @@ the parser matches on, and must be spelled exactly):
    {
        ...
    }
+
+``.. symbolneeds::``
+--------------------
+
+One need per API symbol (function, macro, ...) carrying a Doxygen 1.16
+``\satisfies <UID>``, linked to the requirement needs those UIDs name. Loads
+only for a document whose registry entry has a ``symbol_needs:`` block
+(:doc:`registry-schema`), which also names the Doxygen document whose XML is
+read. Source: :external+zdocs-api:py:mod:`symbol_needs`.
+
+.. code-block:: rst
+
+   .. symbolneeds::
+
+   .. symbolneeds:: queue_apis
+
+Without an argument, every annotated symbol in the Doxygen project is
+emitted, in sections headed by the group (or file) that documents it. With a
+Doxygen group name, only that group's symbols, with no heading. Each symbol is
+emitted once. A symbol without ``\satisfies`` gets no need.
+
+Each need is titled with the symbol name and has the id
+``<TYPE>-<symbol>``, where ``<TYPE>`` is the need type's name in upper case
+(``IMPL-k_queue_init``). Its body gives the kind, the brief, a link to the
+symbol's Doxygen page and the file it is declared in; no custom field is
+needed for them. The need type and link are engine roles, named by the
+consumer like the test directives' (ADR-0009):
+
+.. code-block:: python
+
+   symbolneeds_need_types = {"implementation": "impl"}      # the defaults
+   symbolneeds_need_links = {"satisfies": "satisfies"}
+
+Declare both in ``needs_config.toml``; the link's ``incoming`` name is what a
+requirement's page shows:
+
+.. code-block:: toml
+
+   [[needs.types]]
+   directive = "impl"
+   title = "Implementation"
+   prefix = "IMPL_"
+
+   [needs.links.satisfies]
+   outgoing = "satisfies"
+   incoming = "satisfied by"
+
+A ``\satisfies`` naming a UID that no requirement need has is reported like a
+dangling ``verifies``: sphinx-needs warns "unknown outgoing link" in the
+stage-2 build (the XML cannot tell, since Doxygen writes a
+``requirement_<UID>`` refid for any UID), and Doxygen's own "Reference to
+unknown requirement" warning fails the Doxygen document through
+``ZDOCS_DOXYGEN_WARN_FAIL_PATTERNS`` (:doc:`consumer-contract`).
 
 Doxylink prefixes
 -----------------

@@ -20,6 +20,9 @@ __all__ = [
     "extract_params",
     "detail_rst_lines",
     "parse_memberdef",
+    "requirement_uids",
+    "SymbolInfo",
+    "parse_symbol",
     "load_group_index",
 ]
 
@@ -35,6 +38,15 @@ class MemberInfo(TypedDict):
     detail_lines: list[str]
     see_rst: str
     body_sections: list[list[str]]
+
+
+class SymbolInfo(TypedDict):
+    name: str
+    kind: str
+    satisfies: list[str]
+    brief: str
+    source_file: str
+    doxygen_url: str
 
 
 class RefLinks(NamedTuple):
@@ -398,18 +410,11 @@ def parse_memberdef(
         if see_sect is not None:
             see_rst = see_to_rst(see_sect, api_html_dir, testspec_html_dir)
 
-    # Doxygen's native `\verifies` (1.16+): a <verifies> child of the memberdef
-    # itself, not of the description, with the UID only in each requirement's
-    # refid. Read beside the `@reqref` xrefsects above; both are live while
-    # sources migrate.
-    #
-    # The refid is NOT proof the requirement exists: Doxygen synthesizes it from
-    # the UID string whether or not any `\requirement` defines it, so a typo is
-    # byte-identical here to a real link. Only Doxygen's warning ("Reference to
-    # unknown requirement") tells them apart.
-    for req in memberdef.findall("verifies/requirement"):
-        uid = req.get("refid", "").removeprefix("requirement_")
-        if uid and uid not in req_ids:
+    # Doxygen's native `\verifies` (1.16+), read beside the `@reqref`
+    # xrefsects above; both are live while sources migrate. See
+    # requirement_uids for why its refids prove nothing about existence.
+    for uid in requirement_uids(memberdef, "verifies"):
+        if uid not in req_ids:
             req_ids.append(uid)
 
     ibd = memberdef.find("inbodydescription")
@@ -431,6 +436,61 @@ def parse_memberdef(
         detail_lines=detail_lines,
         see_rst=see_rst,
         body_sections=body_sections,
+    )
+
+
+def requirement_uids(memberdef: ET.Element, relation: str) -> list[str]:
+    """The requirement UIDs of Doxygen's native ``\\verifies`` or ``\\satisfies``.
+
+    ``relation`` is the element name, ``verifies`` or ``satisfies``: a child of
+    the memberdef itself, not of its description, with the UID only in each
+    ``<requirement>``'s refid, in source order, each UID once.
+
+    The refid is NOT proof the requirement exists: Doxygen synthesizes
+    ``requirement_<UID>`` from the UID string whether or not any
+    ``\\requirement`` defines it, so a typo is byte-identical here to a real
+    link. Doxygen's "Reference to unknown requirement" warning tells them apart,
+    and so does the link target's absence among the needs, which sphinx-needs
+    reports for the link these UIDs become.
+    """
+    uids: list[str] = []
+    for req in memberdef.findall(f"{relation}/requirement"):
+        uid = req.get("refid", "").removeprefix("requirement_")
+        if uid and uid not in uids:
+            uids.append(uid)
+    return uids
+
+
+def parse_symbol(memberdef: ET.Element, html_dir: str) -> SymbolInfo:
+    """An API symbol (function, macro, ...) as a need's data: name, kind, the
+    requirements it satisfies, its brief, where it is declared, and its page in
+    the Doxygen HTML under ``html_dir``.
+
+    The page is the one Doxygen documents the member on, which its id names:
+    ``<compound>_1<anchor>``, the same shape `ref_to_rst` links. A member in a
+    group is documented on the group's page, not the header's.
+    """
+    member_id = memberdef.get("id", "")
+    doxygen_url = ""
+    if html_dir and "_1" in member_id:
+        cut = member_id.rfind("_1")
+        doxygen_url = f"{html_dir}/{member_id[:cut]}.html#{member_id[cut + 2:]}"
+
+    loc = memberdef.find("location")
+    source_file = ""
+    if loc is not None:
+        fpath = loc.get("declfile") or loc.get("file", "")
+        line = loc.get("declline") or loc.get("line", "")
+        if fpath:
+            source_file = f"{fpath} (line {line})" if line else fpath
+
+    return SymbolInfo(
+        name=memberdef.findtext("name", "").strip(),
+        kind=memberdef.get("kind", ""),
+        satisfies=requirement_uids(memberdef, "satisfies"),
+        brief=para_text(memberdef.find("briefdescription/para"), RefLinks(local=html_dir)),
+        source_file=source_file,
+        doxygen_url=doxygen_url,
     )
 
 

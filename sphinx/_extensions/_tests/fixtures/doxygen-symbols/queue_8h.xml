@@ -1,0 +1,56 @@
+<?xml version='1.0' encoding='UTF-8' standalone='no'?>
+<doxygen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="compound.xsd" version="1.16.1" xml:lang="en-US">
+  <compounddef id="queue_8h" kind="file" language="C++">
+    <compoundname>queue.h</compoundname>
+    <sectiondef kind="define">
+      <member refid="group__queue__apis_1ga5b0c7ac7015ee26689868e2cee51d7bf" kind="define"><name>K_QUEUE_MAX</name></member>
+    </sectiondef>
+    <sectiondef kind="func">
+      <member refid="group__queue__apis_1ga7119309c1016c8ac5ea22768916c4b8a" kind="function"><name>k_queue_init</name></member>
+      <member refid="group__queue__apis_1gada516dd86f02a060051af841a3dd4e93" kind="function"><name>k_queue_append</name></member>
+      <member refid="group__queue__apis_1ga4eda70972099c1ce2f9f79599f3d3fbd" kind="function"><name>k_queue_cancel_wait</name></member>
+      <memberdef kind="function" id="queue_8h_1aa0868e90f6712018e04fa4b93bdc5761" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>int</type>
+        <definition>int k_queue_is_empty</definition>
+        <argsstring>(struct k_queue *q)</argsstring>
+        <name>k_queue_is_empty</name>
+        <param>
+          <type>struct k_queue *</type>
+          <declname>q</declname>
+        </param>
+        <satisfies>
+          <requirement refid="requirement_REQ-QUEUE-2"></requirement>
+        </satisfies>
+        <briefdescription>
+<para>Query a queue to see if it has data available; outside any group. </para>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="queue.h" line="53" column="5" declfile="queue.h" declline="53" declcolumn="5"/>
+      </memberdef>
+    </sectiondef>
+    <briefdescription>
+<para>Queue API. </para>
+    </briefdescription>
+    <detaileddescription>
+    </detaileddescription>
+    <programlisting>
+<codeline lineno="1"><highlight class="normal"></highlight></codeline>
+<codeline lineno="5"><highlight class="normal"></highlight></codeline>
+<codeline lineno="11"><highlight class="normal"></highlight></codeline>
+<codeline lineno="19" refid="group__queue__apis_1ga7119309c1016c8ac5ea22768916c4b8a" refkind="member"><highlight class="normal"></highlight><highlight class="keywordtype">void</highlight><highlight class="normal"><sp/><ref refid="group__queue__apis_1ga7119309c1016c8ac5ea22768916c4b8a" kindref="member">k_queue_init</ref>(</highlight><highlight class="keyword">struct</highlight><highlight class="normal"><sp/>k_queue<sp/>*q);</highlight></codeline>
+<codeline lineno="20"><highlight class="normal"></highlight></codeline>
+<codeline lineno="32" refid="group__queue__apis_1gada516dd86f02a060051af841a3dd4e93" refkind="member"><highlight class="normal"></highlight><highlight class="keywordtype">void</highlight><highlight class="normal"><sp/><ref refid="group__queue__apis_1gada516dd86f02a060051af841a3dd4e93" kindref="member">k_queue_append</ref>(</highlight><highlight class="keyword">struct</highlight><highlight class="normal"><sp/>k_queue<sp/>*q,<sp/></highlight><highlight class="keywordtype">void</highlight><highlight class="normal"><sp/>*data);</highlight></codeline>
+<codeline lineno="33"><highlight class="normal"></highlight></codeline>
+<codeline lineno="39" refid="group__queue__apis_1ga5b0c7ac7015ee26689868e2cee51d7bf" refkind="member"><highlight class="normal"></highlight><highlight class="preprocessor">#define<sp/>K_QUEUE_MAX<sp/>8</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="40"><highlight class="normal"></highlight></codeline>
+<codeline lineno="44" refid="group__queue__apis_1ga4eda70972099c1ce2f9f79599f3d3fbd" refkind="member"><highlight class="normal"></highlight><highlight class="keywordtype">void</highlight><highlight class="normal"><sp/><ref refid="group__queue__apis_1ga4eda70972099c1ce2f9f79599f3d3fbd" kindref="member">k_queue_cancel_wait</ref>(</highlight><highlight class="keyword">struct</highlight><highlight class="normal"><sp/>k_queue<sp/>*q);</highlight></codeline>
+<codeline lineno="45"><highlight class="normal"></highlight></codeline>
+<codeline lineno="47"><highlight class="normal"></highlight></codeline>
+<codeline lineno="53" refid="queue_8h_1aa0868e90f6712018e04fa4b93bdc5761" refkind="member"><highlight class="normal"></highlight><highlight class="keywordtype">int</highlight><highlight class="normal"><sp/><ref refid="queue_8h_1aa0868e90f6712018e04fa4b93bdc5761" kindref="member">k_queue_is_empty</ref>(</highlight><highlight class="keyword">struct</highlight><highlight class="normal"><sp/>k_queue<sp/>*q);</highlight></codeline>
+    </programlisting>
+    <location file="queue.h"/>
+  </compounddef>
+</doxygen>

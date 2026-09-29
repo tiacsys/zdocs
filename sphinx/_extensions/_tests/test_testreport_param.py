@@ -69,7 +69,8 @@ def test_values_are_recognised():
 
 
 def test_a_failed_value_carries_the_assertion_not_the_suite_message():
-    failed = [r for r in tw.parse_twister_results(XML) if r["status"] == "failed" and r.get("instance")]
+    results = tw.parse_twister_results(XML)
+    failed = [r for r in results if r["status"] == "failed" and r.get("instance")]
     assert len(failed) == 1
     reason = failed[0]["reason"]
     assert "Assertion failed at CMAKE_SOURCE_DIR/src/main.c:363" in reason

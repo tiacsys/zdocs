@@ -166,6 +166,10 @@ def configure(
     testmodule = refs.testmodule if refs else None
     if testmodule is not None:
         all_extensions.append("test_module")
+    # Same opt-in shape: a `symbol_needs:` block loads the symbolneeds directive.
+    symbol_needs = refs.symbol_needs if refs else None
+    if symbol_needs is not None:
+        all_extensions.append("symbol_needs")
 
     # Version, from this document's scoped git tags in the CONSUMING repository
     # (or the VERSION env override) — the same resolver the Doxygen side uses, so
@@ -418,3 +422,6 @@ def configure(
         namespace["twister_output_dir"] = os.environ.get("ZDOCS_TWISTER_OUT", "")
         namespace["twisterinfo_project_name"] = project
         namespace["twisterinfo_project_version"] = version
+    if symbol_needs is not None:
+        namespace["symbolneeds_xml_dir"] = symbol_needs["xml_dir"]
+        namespace["symbolneeds_doxygen_url"] = symbol_needs["doxygen_url"]

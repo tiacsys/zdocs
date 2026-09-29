@@ -1,0 +1,24 @@
+<?xml version='1.0' encoding='UTF-8' standalone='no'?>
+<doxygenindex xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="index.xsd" version="1.16.1" xml:lang="en-US">
+  <compound refid="queue_8h" kind="file"><name>queue.h</name>
+    <member refid="group__queue__apis_1ga5b0c7ac7015ee26689868e2cee51d7bf" kind="define"><name>K_QUEUE_MAX</name></member>
+    <member refid="group__queue__apis_1ga7119309c1016c8ac5ea22768916c4b8a" kind="function"><name>k_queue_init</name></member>
+    <member refid="group__queue__apis_1gada516dd86f02a060051af841a3dd4e93" kind="function"><name>k_queue_append</name></member>
+    <member refid="group__queue__apis_1ga4eda70972099c1ce2f9f79599f3d3fbd" kind="function"><name>k_queue_cancel_wait</name></member>
+    <member refid="queue_8h_1aa0868e90f6712018e04fa4b93bdc5761" kind="function"><name>k_queue_is_empty</name></member>
+  </compound>
+  <compound refid="req_8dox" kind="file"><name>req.dox</name>
+  </compound>
+  <compound refid="group__queue__apis" kind="group"><name>queue_apis</name>
+    <member refid="group__queue__apis_1ga7119309c1016c8ac5ea22768916c4b8a" kind="function"><name>k_queue_init</name></member>
+    <member refid="group__queue__apis_1gada516dd86f02a060051af841a3dd4e93" kind="function"><name>k_queue_append</name></member>
+    <member refid="group__queue__apis_1ga4eda70972099c1ce2f9f79599f3d3fbd" kind="function"><name>k_queue_cancel_wait</name></member>
+    <member refid="group__queue__apis_1ga5b0c7ac7015ee26689868e2cee51d7bf" kind="define"><name>K_QUEUE_MAX</name></member>
+  </compound>
+  <compound refid="kconfig_depends" kind="page"><name>kconfig_depends</name>
+  </compound>
+  <compound refid="requirement_REQ-QUEUE-1" kind="requirement"><name>REQ-QUEUE-1</name>
+  </compound>
+  <compound refid="requirement_REQ-QUEUE-2" kind="requirement"><name>REQ-QUEUE-2</name>
+  </compound>
+</doxygenindex>

@@ -3,7 +3,6 @@
 # SPDX-License-Identifier: Apache-2.0
 
 """Sphinx extension: testmodule and testreport directives (Route B — sphinx-needs)."""
-import os
 import xml.etree.ElementTree as ET
 from collections import Counter, defaultdict
 from pathlib import Path
@@ -12,6 +11,12 @@ from docutils import nodes
 from docutils.parsers.rst import Directive, directives
 from docutils.statemachine import ViewList
 from doxygen_parser import detail_rst_lines, load_group_index, parse_memberdef
+from input_tracking import (  # noqa: F401  (the other hooks are re-exported for tests)
+    _merge_inputs,
+    _note_input,
+    _outdated_by_input_change,
+    _purge_inputs,
+)
 from rst_builders import (
     _need_name,
     build_need_rst,
@@ -536,60 +541,6 @@ class TestModuleDirective(Directive):
 # TestReportDirective
 # ---------------------------------------------------------------------------
 
-# ---------------------------------------------------------------------------
-# Inputs outside the source tree
-#
-# testreport and twisterinfo read the twister XML/JSON and the spec's
-# needs.json. Sphinx re-reads a document only when a tracked input is missing
-# or NEWER than the document's last read. That is not enough here: twister
-# output often arrives with an older mtime (a CI artifact or cache restored
-# with its timestamps, a copy that preserves them). The report then stays
-# stale without a warning. So each input's signature is recorded at read time,
-# and a document is re-read whenever a signature differs, in either direction.
-# ---------------------------------------------------------------------------
-
-def _input_signature(path):
-    """(mtime_ns, size) of ``path``, or None if it does not exist."""
-    try:
-        st = os.stat(path)
-    except OSError:
-        return None
-    return (st.st_mtime_ns, st.st_size)
-
-
-def _note_input(env, path):
-    """Track ``path`` as an input of the document being read."""
-    path = str(path)
-    env.note_dependency(path)
-    inputs = getattr(env, "zdocs_report_inputs", None)
-    if inputs is None:
-        inputs = env.zdocs_report_inputs = {}
-    inputs.setdefault(env.docname, {})[path] = _input_signature(path)
-
-
-def _outdated_by_input_change(app, env, added, changed, removed):
-    """``env-get-outdated``: documents whose recorded inputs changed."""
-    return [
-        docname
-        for docname, paths in getattr(env, "zdocs_report_inputs", {}).items()
-        if docname not in removed
-        and any(_input_signature(path) != sig for path, sig in paths.items())
-    ]
-
-
-def _purge_inputs(app, env, docname):
-    getattr(env, "zdocs_report_inputs", {}).pop(docname, None)
-
-
-def _merge_inputs(app, env, docnames, other):
-    theirs = getattr(other, "zdocs_report_inputs", {})
-    if not hasattr(env, "zdocs_report_inputs"):
-        env.zdocs_report_inputs = {}
-    for docname in docnames:
-        if docname in theirs:
-            env.zdocs_report_inputs[docname] = theirs[docname]
-
-
 class TestReportDirective(Directive):
     """
     Emit sphinx-needs test_result nodes from a twister_report.xml.
@@ -812,7 +763,5 @@ def setup(app):
     app.add_directive("testmodule", TestModuleDirective)
     app.add_directive("testreport", TestReportDirective)
     app.add_directive("twisterinfo", TwisterInfoDirective)
-    app.connect("env-get-outdated", _outdated_by_input_change)
-    app.connect("env-purge-doc", _purge_inputs)
-    app.connect("env-merge-info", _merge_inputs)
+    app.setup_extension("input_tracking")
     return {"version": "0.2", "parallel_read_safe": True}
