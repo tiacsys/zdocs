@@ -11,6 +11,7 @@
 # a role is absent from the mapping.
 import logging
 import re
+from collections import Counter
 from pathlib import Path
 
 import yaml
@@ -227,7 +228,58 @@ def build_result_rst(r, spec_id, test_module, req_ids=None, need_names=None):
     if r["reason"]:
         lines.append(f"   :reason: {r['reason']}")
     lines.append("")
+    if r.get("values"):
+        lines += _values_rst(r)
     return "\n".join(lines)
+
+
+def _values_summary(values):
+    """``"9 values: 8 passed, 1 failed"`` for a parameterized test's values."""
+    counts = Counter(v["status"] for v in values)
+    order = ["passed", "failed", "error", "skipped"]
+    parts = [f"{counts[k]} {k}" for k in order if counts[k]]
+    parts += [f"{n} {k}" for k, n in sorted(counts.items()) if k not in order]
+    return f"{len(values)} values: {', '.join(parts)}"
+
+
+_RST_INLINE = re.compile(r"([\\`*_|\[\]<>])")
+
+
+def _rst_text(text):
+    """``text`` as literal RST prose: inline markup characters escaped."""
+    return _RST_INLINE.sub(r"\\\1", " ".join(str(text).split()))
+
+
+def _values_rst(r):
+    """The body of a parameterized test's result: counts, then what did not pass.
+
+    Passed values are counted, not listed; a run of hundreds of values would
+    otherwise bury the one that failed.
+    """
+    values = r["values"]
+    summary = _values_summary(values) + "."
+    if r.get("twister_status"):
+        summary += f" Twister reported the test as ``{r['twister_status']}``."
+    lines = [f"   {summary}", ""]
+    others = [v for v in values if v["status"] != "passed"]
+    if others:
+        lines += [
+            "   .. list-table:: Values not passed",
+            "      :header-rows: 1",
+            "      :widths: 30 15 55",
+            "",
+            "      * - Value",
+            "        - Status",
+            "        - Reason",
+        ]
+        for v in others:
+            lines += [
+                f"      * - {_rst_text(v['value'])}",
+                f"        - {v['status']}",
+                f"        - {_rst_text(v['reason']) if v['reason'] else '—'}",
+            ]
+        lines.append("")
+    return lines
 
 
 def build_scenario_table(testcase_yaml_path):

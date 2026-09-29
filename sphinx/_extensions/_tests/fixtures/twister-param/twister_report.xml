@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Extracted from a real twister run (Zephyr v4.4.0, mps2/an385) of tests/kernel/semaphore/semaphore
+     with value 8 of sem_init_validity's ZTEST_P made to fail. ztest summarised the test as
+     "FLAKY - (Failed 1 of 9 attempts)", which twister does not recognise: the aggregate gets
+     "Testsuite failed" here and `blocked` in twister.json. Only [cases/8] carries the assertion.
+     The aggregate's failure text (the whole handler log) is shortened. -->
+<testsuites>
+	<testsuite name="mps2/an385" tests="11" failures="2" errors="0" skipped="0">
+		<testcase classname="kernel.semaphore" name="kernel.semaphore.semaphore.sem_count_get" time="0.01" />
+		<testcase classname="kernel.semaphore" name="kernel.semaphore.semaphore.sem_init_validity" time="0.00">
+			<failure type="failure" message="Testsuite failed">*** Booting Zephyr OS build v4.4.0-13457-g24e1b45a5d81 ***
+Running TESTSUITE semaphore
+[...]
+TESTSUITE semaphore failed.
+</failure>
+		</testcase>
+		<testcase classname="kernel.semaphore" name="kernel.semaphore.sem_init_validity[cases/0]" time="0.00" />
+		<testcase classname="kernel.semaphore" name="kernel.semaphore.sem_init_validity[cases/1]" time="0.00" />
+		<testcase classname="kernel.semaphore" name="kernel.semaphore.sem_init_validity[cases/2]" time="0.00" />
+		<testcase classname="kernel.semaphore" name="kernel.semaphore.sem_init_validity[cases/3]" time="0.00" />
+		<testcase classname="kernel.semaphore" name="kernel.semaphore.sem_init_validity[cases/4]" time="0.00" />
+		<testcase classname="kernel.semaphore" name="kernel.semaphore.sem_init_validity[cases/5]" time="0.00" />
+		<testcase classname="kernel.semaphore" name="kernel.semaphore.sem_init_validity[cases/6]" time="0.00" />
+		<testcase classname="kernel.semaphore" name="kernel.semaphore.sem_init_validity[cases/7]" time="0.00" />
+		<testcase classname="kernel.semaphore" name="kernel.semaphore.sem_init_validity[cases/8]" time="0.01">
+			<failure type="failure" message="Testsuite failed">START - test_sem_init_validity[cases/8]
+
+    Assertion failed at CMAKE_SOURCE_DIR/src/main.c:363: semaphore_test_sem_init_validity: (_act not equal to _exp)
+k_sem_init incorrect return value: -22 != 0
+ FAIL - test_sem_init_validity[cases/8] in 0.006 seconds
+</failure>
+		</testcase>
+	</testsuite>
+</testsuites>

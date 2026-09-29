@@ -71,6 +71,34 @@ are **derived from the registry** — the report's own ``testmodule:`` block
 already names the specification it reads — rather than hand-written by the
 consumer, which would duplicate what the registry knows.
 
+Parameterized tests
+-------------------
+
+A ztest ``ZTEST_P`` function runs once per parameter value, and twister
+reports it twice over: one aggregate result, ``<scenario>.<suite>.<fn>``, from
+ztest's summary line, and one result per value,
+``<scenario>.<fn>[<instantiation>/<value>]`` — with no suite segment. The
+specification documents the function once, so the report does too: each value
+result is attached to the aggregate of the same run (platform and scenario),
+and the aggregate's result need carries them. Its status comes from the
+values — failed if any failed, skipped if all were skipped, passed if every
+value that ran passed — and its body counts them ("9 values: 8 passed, 1
+failed") and tabulates only the values that did not pass, with the assertion
+each one failed on.
+
+The aggregate's own status is not trusted for this. When one value fails,
+ztest summarises the function as ``FLAKY``, which twister does not recognise:
+it records the aggregate as ``blocked`` in ``twister.json`` and as a generic
+"Testsuite failed" in the XML, and only the failing value's result carries the
+real assertion. Where twister's status for the aggregate disagrees with the
+values' verdict, the need says so ("Twister reported the test as
+``blocked``").
+
+A run whose values have no aggregate at all borrows the suite from other runs'
+aggregates of the same scenario and function, or else from the specification
+if exactly one test case has that function name. Values that match neither are
+skipped with one warning per function, not one per value.
+
 Where the test runner writes
 ----------------------------
 

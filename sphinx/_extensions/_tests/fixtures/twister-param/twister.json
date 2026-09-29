@@ -1,0 +1,77 @@
+{
+  "environment": {
+    "run_date": "2026-09-29T12:18:23+00:00",
+    "zephyr_version": "v4.4.0-13457-g24e1b45a5d81",
+    "toolchain": "zephyr/gnu",
+    "os": "Linux"
+  },
+  "testsuites": [
+    {
+      "name": "kernel.semaphore",
+      "arch": "arm",
+      "platform": "mps2/an385",
+      "toolchain": "zephyr/gnu",
+      "status": "failed",
+      "reason": "Testsuite failed",
+      "path": "tests/kernel/semaphore/semaphore",
+      "testcases": [
+        {
+          "identifier": "kernel.semaphore.semaphore.sem_count_get",
+          "execution_time": "0.01",
+          "status": "passed"
+        },
+        {
+          "identifier": "kernel.semaphore.semaphore.sem_init_validity",
+          "execution_time": "0.00",
+          "status": "blocked",
+          "reason": "Testsuite failed"
+        },
+        {
+          "identifier": "kernel.semaphore.sem_init_validity[cases/0]",
+          "execution_time": "0.00",
+          "status": "passed"
+        },
+        {
+          "identifier": "kernel.semaphore.sem_init_validity[cases/1]",
+          "execution_time": "0.00",
+          "status": "passed"
+        },
+        {
+          "identifier": "kernel.semaphore.sem_init_validity[cases/2]",
+          "execution_time": "0.00",
+          "status": "passed"
+        },
+        {
+          "identifier": "kernel.semaphore.sem_init_validity[cases/3]",
+          "execution_time": "0.00",
+          "status": "passed"
+        },
+        {
+          "identifier": "kernel.semaphore.sem_init_validity[cases/4]",
+          "execution_time": "0.00",
+          "status": "passed"
+        },
+        {
+          "identifier": "kernel.semaphore.sem_init_validity[cases/5]",
+          "execution_time": "0.00",
+          "status": "passed"
+        },
+        {
+          "identifier": "kernel.semaphore.sem_init_validity[cases/6]",
+          "execution_time": "0.00",
+          "status": "passed"
+        },
+        {
+          "identifier": "kernel.semaphore.sem_init_validity[cases/7]",
+          "execution_time": "0.00",
+          "status": "passed"
+        },
+        {
+          "identifier": "kernel.semaphore.sem_init_validity[cases/8]",
+          "execution_time": "0.01",
+          "status": "failed"
+        }
+      ]
+    }
+  ]
+}
