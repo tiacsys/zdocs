@@ -20,33 +20,15 @@ and never meant to be public
 ``deploy/pdf/`` folder, if any document declares the ``latex`` builder, is a
 separate artifact you distribute on its own terms, covered below.
 
-Match the served URL to ``base_url``
-----------------------------------------
+Serve it from anywhere
+------------------------
 
-Every cross-document Sphinx link in the build is an **absolute URL** baked in
-under the registry's ``base_url:`` (or whatever ``-DZDOCS_DOC_BASE_URL=…``
-overrode it to) at build time. If the tree is served from anywhere else, those
-links are wrong on the published site even though the build was clean — there
-is no way to relocate a Sphinx page's own outbound links after the fact.
-Rebuild with the right value set (:doc:`../reference/consumer-contract`)
-*before* publishing, rather than after finding the links broken.
-
-Doxygen's own cross-document links are relative hops within ``deploy/html/``,
-so they are unaffected by where the tree is ultimately served from — only the
-Sphinx side is base-URL sensitive.
-
-Browsing before you publish
--------------------------------
-
-Opening ``deploy/html/<doc>/index.html`` straight from the filesystem
-(``file://``) works for reading one document in isolation, but every
-cross-document Sphinx link will be dead: it is the absolute
-``base_url``-rooted URL described above, and ``file://`` has no such host to
-resolve it against. Doxygen's own inter-document links, being relative,
-resolve fine even this way. This is expected engine behaviour, not something
-to work around — check cross-document links by running ``doc-check``
-(:doc:`../reference/cli`) against the built tree, not by clicking around it
-locally.
+Every cross-document link inside ``deploy/html/`` — Sphinx and Doxygen alike —
+is a relative path (:doc:`../explanation/decisions/0012-relative-cross-document-links`),
+so the tree can be published under any host, port or subdirectory without a
+rebuild, and ``deploy/html/<doc>/index.html`` can be browsed straight from the
+filesystem (``file://``) with working cross-document links. Still check them
+with ``doc-check`` (:doc:`../reference/cli`) rather than by clicking around.
 
 Distributing a PDF
 ---------------------

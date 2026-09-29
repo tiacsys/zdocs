@@ -102,10 +102,10 @@ from outside your ``CMakeLists.txt``.
 
 ``ZDOCS_DOC_BASE_URL``
    Default empty, meaning "use the registry's own ``base_url:``"
-   (:doc:`registry-schema`). Set this to serve the same deploy tree from a
-   different host than the registry assumes; :term:`base URL` is baked into
-   every cross-document Sphinx link at build time, so changing it later means
-   rebuilding.
+   (:doc:`registry-schema`). Only output outside ``deploy/html/`` uses it —
+   the HTML links its peers relatively — so set it when a PDF must point at a
+   different host than the registry assumes; :term:`base URL` is baked in at
+   build time, so changing it later means rebuilding.
 
 ``ZDOCS_TWISTER_OUT``
    Default empty. Directory holding a :term:`twister` run's own output

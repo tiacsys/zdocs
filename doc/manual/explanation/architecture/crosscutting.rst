@@ -95,15 +95,16 @@ lines. Both toolchains resolve it through the same code, so they cannot
 disagree about the version of one repository, and the value reaches Doxygen at
 build time rather than configure time.
 
-Absolute URLs, and where they end up
-------------------------------------
+Relative links, and where they stop working
+-------------------------------------------
 
-Cross-document **Sphinx** links are absolute URLs under the set's base URL,
-while **Doxygen**'s are relative hops. A deploy tree opened from the filesystem
-therefore has working Doxygen cross-links and broken Sphinx ones — expected,
-not a defect.
+Cross-document links inside ``deploy/html/`` are relative, for both
+toolchains, so the tree works wherever it is served
+(:doc:`../decisions/0012-relative-cross-document-links`). Output outside that
+tree has nothing to be relative to and uses absolute URLs under the set's base
+URL instead.
 
-It matters most for PDFs, which are the one artifact that leaves the deploy
+That matters most for PDFs, which are the one artifact that leaves the deploy
 tree. The base URL is baked in at build time, so a PDF built with a development
 base URL points at a host that does not exist — permanently, in a document that
 may already be signed.

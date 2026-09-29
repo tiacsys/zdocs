@@ -50,12 +50,14 @@ Two link shapes, one tree
 Within the same tree, the two toolchains address each other differently:
 
 - **Doxygen to Doxygen** is a relative hop — one ``../`` under this layout.
-- **Sphinx to anything** is an absolute URL under the set's base URL.
+- **Sphinx to a local peer** is a relative path too, resolved per page by
+  whichever mechanism carries the link (intersphinx, doxylink, sphinx-needs,
+  the sidebar template).
 
-So a deploy tree opened from the filesystem has working Doxygen cross-links and
-broken Sphinx ones. That is expected. It also means the base URL is baked into
-every published Sphinx page at build time, which matters most for PDFs — see
-:doc:`architecture/crosscutting`.
+So ``deploy/html/`` works wherever it is served, and from the filesystem. The
+base URL only applies to output outside ``deploy/html/`` — PDFs above all, see
+:doc:`architecture/crosscutting` and
+:doc:`decisions/0012-relative-cross-document-links`.
 
 Cleaning
 --------
