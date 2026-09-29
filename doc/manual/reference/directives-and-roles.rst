@@ -106,15 +106,40 @@ groups becomes one need each — nothing is written by hand per test case.
 .. code-block:: rst
 
    .. testreport:: twister_report.xml
-      :module: widget.probe
+      :path: tests/kernel/timer/timer_error_case
 
    .. twisterinfo:: twister.json
 
 ``testreport``'s and ``twisterinfo``'s arguments are filenames resolved
 against ``ZDOCS_TWISTER_OUT`` (or the including document's own directory, as a
 fallback, if that is unset) unless given as an absolute path.
-``testreport``'s optional ``:module:`` prefix-matches against the JUnit
-``classname``. Both directives **soft-fail** to a short "not found" paragraph
+
+``testreport`` selects which runs a page shows with two optional options:
+
+``:path:``
+   A test directory, exactly as twister records it in ``twister.json``'s
+   testsuite ``path`` — relative to ``ZEPHYR_BASE``, e.g.
+   ``tests/kernel/timer/timer_error_case`` (a test root outside the Zephyr
+   tree reads ``../<project>/tests/...``). Compared exactly after normalising
+   slashes, a leading ``./`` and a trailing ``/``; never as a prefix. The path
+   comes from the ``twister.json`` beside the report XML (the XML has none), and
+   each result is matched to its testsuite by platform and scenario name. If
+   that ``twister.json`` is missing, the directive soft-fails to a "not found"
+   paragraph like the other inputs.
+``:module:``
+   A scenario-name prefix, matched against the JUnit ``classname`` (the
+   scenario itself, or ``<module>.`` followed by anything).
+
+With both, a run must match both. With neither, the page shows every result in
+the report. ``:path:`` is the one that identifies a test module: scenario
+names do not follow directories upstream — tests/kernel/timer/timer_api runs
+as ``kernel.timer``, a prefix of timer_error_case's ``kernel.timer.error_case``
+— so ``:module:`` alone can put one module's results on another's page, where
+the second page then fails with "A need with ID … already exists". The
+execution-log section and the result summary follow the same selection, so a
+page is consistent with itself.
+
+Both directives **soft-fail** to a short "not found" paragraph
 when their input is absent, rather than failing the build — a documentation
 build outrunning its test run is a normal pipeline state. ``testmodule`` does
 **not** soft-fail on a missing Doxygen group: annotated source is expected to

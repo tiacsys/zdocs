@@ -1,0 +1,30 @@
+{
+  "environment": {
+    "run_date": "2026-09-29T10:00:00+00:00",
+    "zephyr_version": "4.4.0",
+    "toolchain": "zephyr",
+    "os": "linux"
+  },
+  "testsuites": [
+    {
+      "name": "kernel.timer",
+      "platform": "mps2/an385",
+      "path": "tests/kernel/timer/timer_api",
+      "toolchain": "zephyr/gnu",
+      "status": "passed",
+      "testcases": [
+        {"identifier": "kernel.timer.timer_api.timer_duration_period", "status": "passed"}
+      ]
+    },
+    {
+      "name": "kernel.timer.error_case",
+      "platform": "mps2/an385",
+      "path": "tests/kernel/timer/timer_error_case",
+      "toolchain": "zephyr/gnu",
+      "status": "passed",
+      "testcases": [
+        {"identifier": "kernel.timer.error_case.timer_api_error.timer_start_null", "status": "passed"}
+      ]
+    }
+  ]
+}

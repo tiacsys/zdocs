@@ -105,6 +105,12 @@ for the scenario table.
 
    .. twisterinfo:: twister.json
 
+``:module:`` selects the runs by scenario-name prefix. Where one module's
+scenario name is a prefix of another's (upstream Zephyr has many), select by
+test directory instead: ``:path:`` takes the testsuite path as ``twister.json``
+records it, relative to ``ZEPHYR_BASE`` — for a test root outside the Zephyr
+tree that starts with ``../`` (see :doc:`../reference/directives-and-roles`).
+
 Point ``ZDOCS_TWISTER_OUT`` at a real ``west twister`` output directory
 (``-DZDOCS_TWISTER_OUT=$(west topdir)/twister-out``). Leaving it unset is
 supported: both directives render a "not found" note and the build still

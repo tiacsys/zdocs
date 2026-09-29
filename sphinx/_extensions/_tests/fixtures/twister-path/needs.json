@@ -1,0 +1,21 @@
+{
+  "current_version": "1.0",
+  "versions": {
+    "1.0": {
+      "needs": {
+        "TSPEC-TA-001": {
+          "id": "TSPEC-TA-001", "type": "test_case", "title": "timer duration period",
+          "test_function": "test_timer_duration_period",
+          "test_module": "tests/kernel/timer/timer_api",
+          "suite": "timer_api", "suite_title": "Timer API", "verifies": []
+        },
+        "TSPEC-TE-001": {
+          "id": "TSPEC-TE-001", "type": "test_case", "title": "timer start null",
+          "test_function": "test_timer_start_null",
+          "test_module": "tests/kernel/timer/timer_error_case",
+          "suite": "timer_api_error", "suite_title": "Timer error cases", "verifies": []
+        }
+      }
+    }
+  }
+}
