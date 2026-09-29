@@ -1,0 +1,29 @@
+{
+  "current_version": "1.0",
+  "versions": {
+    "1.0": {
+      "needs": {
+        "TSPEC-SEM-001": {
+          "id": "TSPEC-SEM-001",
+          "type": "test_case",
+          "title": "sem init validity",
+          "test_function": "test_sem_init_validity",
+          "test_module": "tests/kernel/semaphore/semaphore",
+          "suite": "semaphore",
+          "suite_title": "Semaphore",
+          "verifies": []
+        },
+        "TSPEC-SEM-002": {
+          "id": "TSPEC-SEM-002",
+          "type": "test_case",
+          "title": "sem count get",
+          "test_function": "test_sem_count_get",
+          "test_module": "tests/kernel/semaphore/semaphore",
+          "suite": "semaphore",
+          "suite_title": "Semaphore",
+          "verifies": []
+        }
+      }
+    }
+  }
+}

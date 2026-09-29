@@ -139,6 +139,12 @@ the second page then fails with "A need with ID … already exists". The
 execution-log section and the result summary follow the same selection, so a
 page is consistent with itself.
 
+A parameterized test (``ZTEST_P``) gets one result need per run, not one per
+parameter value: the values' results are attached to the test's aggregate
+result, which takes its status from them and lists the values that did not
+pass (:doc:`../explanation/testmodule-and-twister`). No need type or field is
+added for this; the values render in the need's body.
+
 Both directives **soft-fail** to a short "not found" paragraph
 when their input is absent, rather than failing the build — a documentation
 build outrunning its test run is a normal pipeline state. ``testmodule`` does

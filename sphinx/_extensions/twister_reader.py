@@ -6,6 +6,7 @@
 
 import json
 import os
+import re
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
@@ -14,13 +15,15 @@ from pathlib import Path
 # `rst_builders.py` carries the same "no Sphinx, no app.config" rule this
 # module follows — the mapping is passed in by the caller, never read from
 # config here — so importing its pure helper does not violate that rule.
-from rst_builders import _need_name
+from rst_builders import _need_name, _values_summary
 
 __all__ = [
     "parse_twister_results",
     "normalise_test_path",
     "scenario_selected",
     "testsuite_paths",
+    "testcase_statuses",
+    "fold_parameterized_results",
     "SpecLookup",
     "load_spec_lookup",
     "find_handler_log",
@@ -112,7 +115,15 @@ def parse_twister_results(
                 continue
             name = tc.get("name", "")
             scenario = classname
-            suffix = name[len(scenario) + 1 :] if name.startswith(scenario + ".") else name
+            # A parameterized test (ZTEST_P) reports one result per value as
+            # `<scenario>.<fn>[<instantiation>/<value>]`: no suite segment, and
+            # the value may contain anything, dots included, so it is split
+            # off before the name is.
+            base, instance = name, None
+            if name.endswith("]") and "[" in name:
+                cut = name.index("[")
+                base, instance = name[:cut], name[cut + 1 : -1]
+            suffix = base[len(scenario) + 1 :] if base.startswith(scenario + ".") else base
             parts = suffix.rsplit(".", 1)
             suite = parts[0] if len(parts) == 2 else ""
             function = parts[-1]
@@ -129,19 +140,158 @@ def parse_twister_results(
                 status, reason = "skipped", skipped.get("message", "") or _elem_text(skipped)
             else:
                 status, reason = "passed", ""
-            results.append(
-                {
-                    "platform": platform,
-                    "scenario": scenario,
-                    "suite": suite,
-                    "function": function,
-                    "twister_id": name,
-                    "time": tc.get("time", ""),
-                    "status": status,
-                    "reason": reason,
-                }
-            )
+            if instance is not None and status in ("failed", "error"):
+                # Twister gives every value the suite's own message ("Testsuite
+                # failed"); the assertion is in the element's text.
+                reason = _assertion_text(failure if failure is not None else error) or reason
+            result = {
+                "platform": platform,
+                "scenario": scenario,
+                "suite": suite,
+                "function": function,
+                "twister_id": name,
+                "time": tc.get("time", ""),
+                "status": status,
+                "reason": reason,
+            }
+            if instance is not None:
+                result["instance"] = instance
+            results.append(result)
     return results
+
+
+_ZTEST_MARKER = re.compile(r"^\s*(START|PASS|FAIL|SKIP) - ")
+
+
+def _assertion_text(elem):
+    """The text of a failure element without ztest's START/PASS/FAIL marker lines."""
+    lines = (elem.text or "").splitlines() if elem is not None else []
+    kept = [line.strip() for line in lines if line.strip() and not _ZTEST_MARKER.match(line)]
+    return " ".join(kept)
+
+
+def testcase_statuses(twister_meta):
+    """``{(platform, testcase identifier): status}`` from a loaded twister.json.
+
+    twister.json keeps statuses the JUnit XML cannot express — ``blocked`` in
+    particular, which the XML reports as a failure.
+    """
+    return {
+        (ts.get("platform", ""), tc.get("identifier", "")): tc.get("status", "")
+        for ts in twister_meta.get("testsuites", [])
+        for tc in ts.get("testcases", [])
+    }
+
+
+def _attach_values(aggregate, instances, twister_statuses):
+    """Make ``aggregate`` the result of its parameter values.
+
+    The verdict comes from the values: failed if any failed, error if any
+    errored, skipped if all were skipped, else passed. Twister's own status for
+    the aggregate is kept in ``twister_status`` when it disagrees: ztest
+    summarises a partly failing ZTEST_P as FLAKY, which twister does not
+    recognise and reports as ``blocked`` (twister.json) or "Testsuite failed"
+    (the XML).
+    """
+    values = [
+        {"value": r["instance"], "status": r["status"], "reason": r["reason"], "time": r["time"]}
+        for r in instances
+    ]
+    statuses = {v["status"] for v in values}
+    if "failed" in statuses:
+        verdict = "failed"
+    elif "error" in statuses:
+        verdict = "error"
+    elif statuses == {"skipped"}:
+        verdict = "skipped"
+    else:
+        verdict = "passed"
+    reported = aggregate.get("status", "")
+    if twister_statuses:
+        reported = twister_statuses.get((aggregate["platform"], aggregate["twister_id"]), reported)
+    aggregate["values"] = values
+    aggregate["twister_status"] = reported if reported and reported != verdict else ""
+    aggregate["status"] = verdict
+    aggregate["reason"] = "" if verdict == "passed" else _values_summary(values)
+    if not aggregate.get("time"):
+        aggregate["time"] = f"{sum(float(v['time'] or 0) for v in values):.2f}"
+
+
+def fold_parameterized_results(results, spec_lookup=None, twister_statuses=None):
+    """Attach each parameterized test's value results to its aggregate result.
+
+    Twister reports a ZTEST_P function once as the aggregate
+    ``<scenario>.<suite>.<fn>`` (from ztest's summary) and once per value as
+    ``<scenario>.<fn>[<instantiation>/<value>]`` (see `parse_twister_results`,
+    which marks the latter with ``instance``). The spec has one test case for
+    the function, so the values belong to the aggregate of the same run
+    (platform and scenario), found by the function name.
+
+    A run without an aggregate gets one, with the suite taken from the
+    aggregates of other runs of the same scenario and function if they name
+    exactly one, else from the spec (``spec_lookup``) if exactly one case
+    carries the function.
+
+    Returns ``(results, unmatched)``: the results without the value entries,
+    and the function names whose values could not be attached, once each.
+    """
+    plain, by_run = [], {}
+    for r in results:
+        if r.get("instance") is None:
+            plain.append(r)
+        else:
+            by_run.setdefault((r["platform"], r["scenario"], r["function"]), []).append(r)
+    if not by_run:
+        return results, []
+
+    aggregates = {}
+    for r in plain:
+        aggregates.setdefault((r["platform"], r["scenario"], r["function"]), []).append(r)
+
+    unmatched = []
+    for (platform, scenario, fn), instances in by_run.items():
+        hits = aggregates.get((platform, scenario, fn), [])
+        if len(hits) == 1:
+            aggregate = hits[0]
+        elif hits:
+            aggregate = None  # several suites share the name in this run
+        else:
+            aggregate = _synthesized_aggregate(
+                platform, scenario, fn, aggregates, spec_lookup
+            )
+            if aggregate is not None:
+                plain.append(aggregate)
+        if aggregate is None:
+            if fn not in unmatched:
+                unmatched.append(fn)
+            continue
+        _attach_values(aggregate, instances, twister_statuses)
+    return plain, unmatched
+
+
+def _synthesized_aggregate(platform, scenario, fn, aggregates, spec_lookup):
+    suites = {
+        r["suite"]
+        for (_p, sc, f), rs in aggregates.items()
+        if sc == scenario and f == fn
+        for r in rs
+    }
+    if len(suites) == 1:
+        suite = suites.pop()
+    elif not suites and spec_lookup is not None and (info := spec_lookup.find("", fn)):
+        suite = info.get("suite", "")
+    else:
+        return None
+    return {
+        "platform": platform,
+        "scenario": scenario,
+        "suite": suite,
+        "function": fn,
+        "twister_id": f"{scenario}.{suite}.{fn}",
+        "time": "",
+        "status": "",
+        "reason": "",
+    }
 
 
 class SpecLookup:

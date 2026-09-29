@@ -22,10 +22,12 @@ from rst_builders import (
 from sphinx.util import logging
 from twister_reader import (
     find_handler_log,
+    fold_parameterized_results,
     load_spec_lookup,
     load_twister_meta,
     parse_twister_results,
     scenario_selected,
+    testcase_statuses,
     testsuite_paths,
 )
 
@@ -665,26 +667,29 @@ class TestReportDirective(Directive):
             display_msg = f"[testreport: twister XML not found: {_display_name(xml_path)}]"
             return [nodes.paragraph(text=display_msg)]
 
-        # twister_report.xml has no testsuite path; twister.json, written
-        # beside it by the same run, does.
-        suite_paths = None
-        if path_filter is not None:
-            twister_json = Path(xml_path).parent / "twister.json"
-            _note_input(env, twister_json)
-            if not twister_json.exists():
-                logger.warning(
-                    f"testreport: :path: needs twister.json beside the report, "
-                    f"not found: {twister_json}"
-                )
-                return [nodes.paragraph(
-                    text=f"[testreport: twister.json not found: {twister_json.name} "
-                    f"(needed for :path:)]"
-                )]
+        # twister.json, written beside the XML by the same run, has what the
+        # XML lacks: each testsuite's path (needed for :path:) and statuses
+        # such as `blocked` (shown for a parameterized test, see below).
+        twister_json = Path(xml_path).parent / "twister.json"
+        _note_input(env, twister_json)
+        tw_meta = None
+        if twister_json.exists():
             try:
-                suite_paths = testsuite_paths(load_twister_meta(twister_json))
+                tw_meta = load_twister_meta(twister_json)
             except Exception as exc:
                 logger.warning(f"testreport: cannot read {twister_json}: {exc}")
-                return [nodes.paragraph(text=f"[testreport: cannot read {twister_json.name}]")]
+                if path_filter is not None:
+                    return [nodes.paragraph(text=f"[testreport: cannot read {twister_json.name}]")]
+        elif path_filter is not None:
+            logger.warning(
+                f"testreport: :path: needs twister.json beside the report, "
+                f"not found: {twister_json}"
+            )
+            return [nodes.paragraph(
+                text=f"[testreport: twister.json not found: {twister_json.name} "
+                f"(needed for :path:)]"
+            )]
+        suite_paths = testsuite_paths(tw_meta) if tw_meta else None
 
         try:
             results = parse_twister_results(
@@ -693,6 +698,16 @@ class TestReportDirective(Directive):
         except Exception as exc:
             logger.warning(str(exc))
             return [nodes.paragraph(text=str(exc))]
+
+        # One result per parameter value becomes part of its test's result.
+        results, unmatched = fold_parameterized_results(
+            results, spec_lookup, testcase_statuses(tw_meta) if tw_meta else None
+        )
+        for fn in unmatched:
+            logger.warning(
+                f"testreport: parameterized test '{fn}' has value results but no "
+                f"aggregate result and no unique spec case — its values are skipped"
+            )
 
         if not results:
             return [nodes.paragraph(text="[testreport: no matching results]")]
