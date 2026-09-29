@@ -65,6 +65,14 @@ Re-reads a document when an input from outside the source tree changes.
 .. automodule:: input_tracking
    :members:
 
+``needs_fields``
+------------------
+
+Which optional need fields a consumer declared.
+
+.. automodule:: needs_fields
+   :members:
+
 ``xref_builder``
 ------------------
 

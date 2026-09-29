@@ -17,6 +17,7 @@ from input_tracking import (  # noqa: F401  (the other hooks are re-exported for
     _outdated_by_input_change,
     _purge_inputs,
 )
+from needs_fields import depends_field
 from rst_builders import (
     _need_name,
     build_need_rst,
@@ -139,9 +140,14 @@ def _classify_inner_groups(module_cdef: ET.Element, xml_dir: Path):
 
 
 def _build_suite_rst(
-    suite_refid, xml_dir, testspec_html_dir, api_html_dir, module_path, need_names=None
+    suite_refid, xml_dir, testspec_html_dir, api_html_dir, module_path, need_names=None,
+    depends_field=None,
 ):
-    """Build RST lines for one test suite group (section heading + test_case needs)."""
+    """Build RST lines for one test suite group (section heading + test_case needs).
+
+    ``depends_field(conditions, subject)`` decides whether a need gets the
+    ``depends_on`` field (`needs_fields.depends_field`); without it, none does.
+    """
     suite_xml = xml_dir / f"{suite_refid}.xml"
     if not suite_xml.exists():
         logger.warning(f"testmodule: suite XML not found: {suite_xml}")
@@ -160,9 +166,13 @@ def _build_suite_rst(
         info = parse_memberdef(memberdef, compound_id, testspec_html_dir, api_html_dir)
         if not info["name"]:
             continue
+        with_depends = bool(depends_field) and depends_field(
+            info["depends_on"], f"testmodule: {suite_name}/{info['name']}"
+        )
         lines.extend(
             build_need_rst(
-                info, suite_name, module_path, suite_title, need_names=need_names
+                info, suite_name, module_path, suite_title, need_names=need_names,
+                depends_field=with_depends,
             ).splitlines()
         )
         lines.append("")
@@ -527,6 +537,9 @@ class TestModuleDirective(Directive):
             all_rst += _build_suite_rst(
                 suite_refid, xml_dir, testspec_html_dir, api_html_dir, module_path,
                 need_names=need_names,
+                depends_field=lambda conditions, subject: depends_field(
+                    env, conditions, subject
+                ),
             )
         for proc_refid in proc_refids:
             all_rst += _build_proc_group_rst(

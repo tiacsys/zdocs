@@ -182,11 +182,41 @@ the parser matches on, and must be spelled exactly):
    ALIASES += "testid{1}=\xrefitem testids \"Test ID\" \"Test IDs\" \1"
    ALIASES += "reqref{1}=\xrefitem reqrefs \"Requirement\" \"Requirements\" \1"
 
+A third alias is optional. ``@kconfig_depends{<condition>}`` records the
+Kconfig condition a test case (or, with ``symbolneeds``, an API symbol) is
+built under; the key ``kconfig_depends`` is what the parser matches, the titles
+are yours and the first one labels the rendered line:
+
+.. code-block:: text
+
+   ALIASES += "kconfig_depends{1}=\xrefitem kconfig_depends \"Depends on\" \"Kconfig dependencies\" \1"
+
+Every condition is kept verbatim (``(CONFIG_A && !CONFIG_B) || CONFIG_C``;
+write a comma as ``\,``), once, in source order. It renders in the need's body
+("Depends on: ``CONFIG_ASSERT``") on ``testmodule`` and ``symbolneeds`` needs,
+and fills the optional field ``depends_on`` — the conditions joined with
+``"; "`` — if, and only if, your ``needs_config.toml`` declares it. Declare it
+as a string field:
+
+.. code-block:: toml
+
+   [needs.fields.depends_on]
+   description = "Kconfig conditions the need depends on"
+   nullable = true
+   [needs.fields.depends_on.schema]
+   type = "string"
+
+Left undeclared, no need gets the field and nothing warns. Declared as an
+``array``, it works only while no condition contains ``;``, ``|`` or ``,``,
+where sphinx-needs splits an array value; a need with such a condition gets no
+field and a warning instead.
+
 .. code-block:: c
 
    /**
     * @reqref{DUTY_001}
     * @see acme_widget_init()
+    * @kconfig_depends{CONFIG_WIDGET_PROBE}
     * @testid{WIDGET-PROBE-001}
     */
    ZTEST(widget_probe_suite, test_widget_reports_initial_value)
