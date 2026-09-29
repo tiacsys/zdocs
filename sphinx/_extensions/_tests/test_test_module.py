@@ -5,6 +5,7 @@
 """Tests for test_module.py — helper functions and Sphinx directive integration."""
 import io
 import json
+import os
 import xml.etree.ElementTree as ET
 from pathlib import Path
 from types import SimpleNamespace
@@ -363,6 +364,16 @@ def test_testreport_directive_generates_result_ids(app):
 
 
 @pytest.mark.sphinx("html", srcdir=str(_ROOTS / "test-testreport"))
+def test_testreport_directive_notes_its_inputs_as_dependencies(app):
+    # Without these, an incremental build after a new twister run into the
+    # same directory keeps publishing the old report.
+    app.build()
+    deps = {str(Path(app.srcdir) / d) for d in app.env.dependencies["index"]}
+    assert str(Path(app.config.twister_output_dir) / "twister_report.xml") in deps
+    assert app.config.needs_external_needs[0]["json_path"] in deps
+
+
+@pytest.mark.sphinx("html", srcdir=str(_ROOTS / "test-testreport"))
 def test_testreport_directive_suite_heading(app):
     app.build()
     html = (Path(app.outdir) / "index.html").read_text()
@@ -417,7 +428,13 @@ def test_testmodule_directive_procedure_ids(app):
 # ---------------------------------------------------------------------------
 
 def _fake_env(config, docname="index"):
-    return SimpleNamespace(app=SimpleNamespace(config=SimpleNamespace(**config)), docname=docname)
+    noted = []
+    return SimpleNamespace(
+        app=SimpleNamespace(config=SimpleNamespace(**config)),
+        docname=docname,
+        noted=noted,
+        note_dependency=noted.append,
+    )
 
 
 def test_testreport_directive_missing_xml_soft_fails(tmp_path):
@@ -437,6 +454,10 @@ def test_testreport_directive_missing_xml_soft_fails(tmp_path):
     assert len(result) == 1
     assert isinstance(result[0], nodes.paragraph)
     assert "not found" in result[0].astext()
+    # Still a dependency: Sphinx re-reads the report once the file appears.
+    env = directive.state.document.settings.env
+    assert str(tmp_path / "twister_report.xml") in env.noted
+    assert str(NEEDS / "needs.json") in env.noted
 
 
 def test_twisterinfo_directive_missing_json_soft_fails(tmp_path):
@@ -453,6 +474,58 @@ def test_twisterinfo_directive_missing_json_soft_fails(tmp_path):
     assert len(result) == 1
     assert isinstance(result[0], nodes.paragraph)
     assert "not found" in result[0].astext()
+    env = directive.state.document.settings.env
+    assert str(tmp_path / "twister.json") in env.noted
+
+
+def _recorded_env(tmp_path, *names):
+    """A fake env that has read `index` with `names` (under tmp_path) as inputs."""
+    env = SimpleNamespace(docname="index", note_dependency=lambda path: None)
+    for name in names:
+        tm._note_input(env, tmp_path / name)
+    return env
+
+
+def test_an_input_appearing_with_an_older_mtime_outdates_the_report(tmp_path):
+    # The CI shape: the docs were read before the twister artifact arrived, and
+    # the artifact keeps its (older) timestamps. Sphinx's own mtime comparison
+    # misses this; the recorded signature does not.
+    env = _recorded_env(tmp_path, "twister_report.xml")
+    report = tmp_path / "twister_report.xml"
+    report.write_text("<testsuites/>")
+    os.utime(report, ns=(1, 1))
+    assert tm._outdated_by_input_change(None, env, set(), set(), set()) == ["index"]
+
+
+def test_an_unchanged_input_does_not_outdate_the_report(tmp_path):
+    (tmp_path / "twister.json").write_text("{}")
+    env = _recorded_env(tmp_path, "twister.json")
+    assert tm._outdated_by_input_change(None, env, set(), set(), set()) == []
+
+
+def test_a_rewritten_input_outdates_the_report(tmp_path):
+    report = tmp_path / "twister_report.xml"
+    report.write_text("<testsuites/>")
+    os.utime(report, ns=(10**18, 10**18))
+    env = _recorded_env(tmp_path, "twister_report.xml")
+    report.write_text("<testsuites><testsuite/></testsuites>")
+    os.utime(report, ns=(10**18, 10**18))  # same mtime, new size
+    assert tm._outdated_by_input_change(None, env, set(), set(), set()) == ["index"]
+
+
+def test_a_removed_document_is_not_reported(tmp_path):
+    env = _recorded_env(tmp_path, "twister.json")
+    (tmp_path / "twister.json").write_text("{}")
+    assert tm._outdated_by_input_change(None, env, set(), set(), {"index"}) == []
+
+
+def test_purge_and_merge_keep_the_recorded_inputs_per_document(tmp_path):
+    env = _recorded_env(tmp_path, "twister.json")
+    worker = SimpleNamespace(zdocs_report_inputs={"report": {"x": None}, "other": {"y": None}})
+    tm._merge_inputs(None, env, {"report"}, worker)
+    assert set(env.zdocs_report_inputs) == {"index", "report"}
+    tm._purge_inputs(None, env, "index")
+    assert set(env.zdocs_report_inputs) == {"report"}
 
 
 def test_testmodule_directive_missing_xml_dir_hard_fails(tmp_path):
