@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Two test modules whose scenario names prefix-collide, as upstream's do:
+     tests/kernel/timer/timer_api runs as `kernel.timer`, and
+     tests/kernel/timer/timer_error_case as `kernel.timer.error_case`. -->
+<testsuites>
+  <testsuite name="mps2/an385" tests="2" failures="0" errors="0" skipped="0">
+    <testcase classname="kernel.timer" name="kernel.timer.timer_api.timer_duration_period" time="0.10" />
+    <testcase classname="kernel.timer.error_case" name="kernel.timer.error_case.timer_api_error.timer_start_null" time="0.20" />
+  </testsuite>
+</testsuites>

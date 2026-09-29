@@ -25,6 +25,8 @@ from twister_reader import (
     load_spec_lookup,
     load_twister_meta,
     parse_twister_results,
+    scenario_selected,
+    testsuite_paths,
 )
 
 logger = logging.getLogger(__name__)
@@ -273,8 +275,12 @@ def _build_summary_table_rst(grouped, spec_lookup, need_names=None):
     ]
 
 
-def _build_exec_logs_rst(twister_out_dir, module_filter):
-    """Build RST lines for the execution logs section; returns [] when unavailable."""
+def _build_exec_logs_rst(twister_out_dir, module_filter, path_filter=None):
+    """Build RST lines for the execution logs section; returns [] when unavailable.
+
+    Selects the same runs as the results above (`scenario_selected`), so a page
+    never shows the log of a run whose results it does not show.
+    """
     twister_json = Path(twister_out_dir) / "twister.json" if twister_out_dir else None
     if not twister_json or not twister_json.exists():
         return []
@@ -284,11 +290,13 @@ def _build_exec_logs_rst(twister_out_dir, module_filter):
         logger.warning(f"testreport: could not load execution logs: {exc}")
         return []
 
+    suite_paths = testsuite_paths(tw)
     log_entries = []
     for ts in tw.get("testsuites", []):
         sname = ts["name"]
-        if module_filter and not (
-            sname == module_filter or sname.startswith(module_filter + ".")
+        if not scenario_selected(
+            ts["platform"], sname, module_filter,
+            path_filter=path_filter, suite_paths=suite_paths,
         ):
             continue
         log_entries.append((sname, ts["platform"], ts.get("path", ""), ts.get("toolchain", "")))
@@ -587,7 +595,11 @@ class TestReportDirective(Directive):
     Usage::
 
         .. testreport:: twister_report.xml
-           :module: kernel.queue
+           :path: tests/kernel/queue
+
+    ``:path:`` selects the runs of one test directory, as twister.json records
+    it; ``:module:`` selects by scenario-name prefix. With both, a run must
+    match both.
     """
 
     required_arguments = 1
@@ -595,11 +607,13 @@ class TestReportDirective(Directive):
     has_content = False
     option_spec = {
         "module": directives.unchanged,
+        "path": directives.unchanged,
     }
 
     def run(self):
         xml_path = self.arguments[0].strip()
         module_filter = self.options.get("module", "").strip() or None
+        path_filter = self.options.get("path", "").strip() or None
         env = self.state.document.settings.env
         app = env.app
 
@@ -651,8 +665,31 @@ class TestReportDirective(Directive):
             display_msg = f"[testreport: twister XML not found: {_display_name(xml_path)}]"
             return [nodes.paragraph(text=display_msg)]
 
+        # twister_report.xml has no testsuite path; twister.json, written
+        # beside it by the same run, does.
+        suite_paths = None
+        if path_filter is not None:
+            twister_json = Path(xml_path).parent / "twister.json"
+            _note_input(env, twister_json)
+            if not twister_json.exists():
+                logger.warning(
+                    f"testreport: :path: needs twister.json beside the report, "
+                    f"not found: {twister_json}"
+                )
+                return [nodes.paragraph(
+                    text=f"[testreport: twister.json not found: {twister_json.name} "
+                    f"(needed for :path:)]"
+                )]
+            try:
+                suite_paths = testsuite_paths(load_twister_meta(twister_json))
+            except Exception as exc:
+                logger.warning(f"testreport: cannot read {twister_json}: {exc}")
+                return [nodes.paragraph(text=f"[testreport: cannot read {twister_json.name}]")]
+
         try:
-            results = parse_twister_results(xml_path, module_filter)
+            results = parse_twister_results(
+                xml_path, module_filter, path_filter=path_filter, suite_paths=suite_paths
+            )
         except Exception as exc:
             logger.warning(str(exc))
             return [nodes.paragraph(text=str(exc))]
@@ -665,10 +702,12 @@ class TestReportDirective(Directive):
         all_rst = (
             _build_results_rst(suite_order, func_order, grouped, spec_lookup, need_names=need_names)
             + _build_summary_table_rst(grouped, spec_lookup, need_names=need_names)
-            + _build_exec_logs_rst(twister_out_dir, module_filter)
+            + _build_exec_logs_rst(twister_out_dir, module_filter, path_filter)
         )
 
-        _maybe_dump_rst(app, env.docname, "testreport", module_filter or "", "\n".join(all_rst))
+        _maybe_dump_rst(
+            app, env.docname, "testreport", path_filter or module_filter or "", "\n".join(all_rst)
+        )
         return _render_rst(all_rst, self.state, self.content_offset, match_titles=True)
 
 

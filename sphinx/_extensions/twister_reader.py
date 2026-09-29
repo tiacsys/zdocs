@@ -18,6 +18,9 @@ from rst_builders import _need_name
 
 __all__ = [
     "parse_twister_results",
+    "normalise_test_path",
+    "scenario_selected",
+    "testsuite_paths",
     "SpecLookup",
     "load_spec_lookup",
     "find_handler_log",
@@ -32,11 +35,70 @@ def _elem_text(elem):
     return " ".join("".join(elem.itertext()).split())
 
 
-def parse_twister_results(xml_path, module_filter=None, exact=False):
+def normalise_test_path(path):
+    """A testsuite path in one spelling: forward slashes, no ``./``, no trailing ``/``.
+
+    Twister writes ``path`` relative to ZEPHYR_BASE with forward slashes; a
+    consumer typing the same directory may add a trailing slash or a leading
+    ``./``, or come from a Windows checkout. None of that changes which
+    directory it is.
+    """
+    p = str(path).replace("\\", "/")
+    while "//" in p:
+        p = p.replace("//", "/")
+    while p.startswith("./"):
+        p = p[2:]
+    return p.rstrip("/")
+
+
+def testsuite_paths(twister_meta):
+    """``{(platform, scenario): normalised path}`` from a loaded twister.json.
+
+    twister_report.xml carries no path, only the scenario (``classname``) per
+    platform, so the path a result came from is found here, by the same pair.
+    """
+    return {
+        (ts.get("platform", ""), ts.get("name", "")): normalise_test_path(ts.get("path", ""))
+        for ts in twister_meta.get("testsuites", [])
+    }
+
+
+def scenario_selected(
+    platform, scenario, module_filter=None, exact=False, path_filter=None, suite_paths=None
+):
+    """Whether a (platform, scenario) run belongs to the report being built.
+
+    ``module_filter`` matches the scenario name, as a dotted prefix (or exactly
+    with ``exact``). ``path_filter`` matches the testsuite directory exactly,
+    looked up in ``suite_paths`` (see `testsuite_paths`). With both, a run must
+    satisfy both. With neither, every run is selected.
+
+    The scenario prefix alone is not a module: upstream scenario names do not
+    follow the directory layout (``kernel.timer`` is tests/kernel/timer/timer_api,
+    and prefixes ``kernel.timer.error_case`` from timer_error_case), so only
+    the path identifies a module's results reliably.
+    """
+    if module_filter:
+        if exact:
+            if scenario != module_filter:
+                return False
+        elif not (scenario == module_filter or scenario.startswith(module_filter + ".")):
+            return False
+    if path_filter is not None:
+        path = (suite_paths or {}).get((platform, scenario))
+        if path is None or path != normalise_test_path(path_filter):
+            return False
+    return True
+
+
+def parse_twister_results(
+    xml_path, module_filter=None, exact=False, path_filter=None, suite_paths=None
+):
     """Parse twister_report.xml into a list of result dicts.
 
     The 'function' field has any leading 'test_' prefix stripped so it matches
-    the keys used in spec_lookup.
+    the keys used in spec_lookup. Results are selected as `scenario_selected`
+    describes; ``path_filter`` needs ``suite_paths`` from the run's twister.json.
     """
     root = ET.parse(xml_path).getroot()
     results = []
@@ -44,12 +106,10 @@ def parse_twister_results(xml_path, module_filter=None, exact=False):
         platform = ts.get("name", "")
         for tc in ts.findall("testcase"):
             classname = tc.get("classname", "")
-            if module_filter:
-                if exact:
-                    if classname != module_filter:
-                        continue
-                elif not (classname == module_filter or classname.startswith(module_filter + ".")):
-                    continue
+            if not scenario_selected(
+                platform, classname, module_filter, exact, path_filter, suite_paths
+            ):
+                continue
             name = tc.get("name", "")
             scenario = classname
             suffix = name[len(scenario) + 1 :] if name.startswith(scenario + ".") else name
