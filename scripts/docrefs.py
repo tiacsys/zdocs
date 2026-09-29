@@ -664,6 +664,12 @@ def load(this_doc=None, registry=None):
     documents = data["documents"]
     deploy = build_root() / "deploy"
     this_doc = this_doc or _this_doc()
+    # HTML in the deploy tree links its peers by relative path, so the tree
+    # works wherever (and on whatever port) it is served, and from file://.
+    # Everything else — a PDF, the html-live preview — has no sibling tree to
+    # be relative to and uses the absolute base_url instead. The stage-1 xref
+    # index writes into deploy/html too, so it gets the same config as stage 2.
+    relative_links = Path(os.environ["OUTPUT_DIR"]).resolve().parent.name == "html"
 
     # Registry-derived cross-document maps for extensions that need paths/URLs
     # to peer documents (e.g. test_module). Keyed by registry doc id; external
@@ -679,16 +685,26 @@ def load(this_doc=None, registry=None):
         rel_urls[_doc_id] = posixpath.relpath(_path, this_path)
         deploy_dirs[_doc_id] = str(deploy / _path)
 
-    # Nav links, grouped by the registry's `groups:`. Absolute hrefs (base_url):
-    # sphinx/doxygen -> base_url + path; external -> its `remote-url`,
-    # resolved against external_base_url if relative (see
-    # _resolve_external_url).
-    def _abs_href(doc_id, meta):
-        if meta.get("kind") in ("external", "sphinx-external", "doxygen-external"):
-            return _resolve_external_url(meta["remote-url"], external_base_url)
+    def _peer_url(doc_id, meta):
+        """Base URL of a locally built peer: relative to THIS doc's html root
+        (``rel_urls``) for HTML output, ``base_url``-rooted otherwise."""
+        if relative_links and doc_id in rel_urls:
+            return rel_urls[doc_id]
         return base_url + meta.get("path", f"html/{doc_id}")
 
-    reference_groups = grouped_links(this_doc, data, _abs_href)
+    # Nav links, grouped by the registry's `groups:`. sphinx/doxygen -> the
+    # peer's index page (relative ones are relative to this doc's html root;
+    # layout.html prefixes them with the page's own content_root); external ->
+    # its `remote-url`, resolved against external_base_url if relative (see
+    # _resolve_external_url).
+    def _nav_href(doc_id, meta):
+        if meta.get("kind") in ("external", "sphinx-external", "doxygen-external"):
+            return _resolve_external_url(meta["remote-url"], external_base_url)
+        if relative_links:
+            return f"{rel_urls[doc_id]}/index.html"
+        return _peer_url(doc_id, meta)
+
+    reference_groups = grouped_links(this_doc, data, _nav_href)
 
     if check_external_urls:
         for doc_id, meta in documents.items():
@@ -715,7 +731,10 @@ def load(this_doc=None, registry=None):
             continue
 
         path = meta.get("path", f"html/{doc_id}")
-        url = base_url + path
+        # A relative url is resolved per page by each consumer: intersphinx
+        # and sphinx-needs against the referencing document's depth, doxylink
+        # against the source file's.
+        url = _peer_url(doc_id, meta)
         html_dir = deploy / path
         prefix = meta.get("prefix", doc_id.replace("-", "_"))
 
@@ -877,7 +896,7 @@ def navlinks(this_doc, registry=None):
     href for one of these would resolve, in the reader's browser, against the
     CURRENT page's own URL rather than the deploy root, silently landing back
     on this site instead of the real remote one. Mirrors the sphinx sidebar's
-    grouped document list (``load()``'s own ``_abs_href``), which is derived
+    grouped document list (``load()``'s own ``_nav_href``), which is derived
     from the same registry (``reference_groups``) and has covered all three
     kinds since steps 20/21.
     """

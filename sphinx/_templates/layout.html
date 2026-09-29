@@ -24,7 +24,15 @@
     collapsed_at_opening /  a native <details>, no JavaScript;
     not_collapsed_at_opening
     otherwise               a plain caption and list.
+
+  A peer built into the same deploy tree comes with an href relative to this
+  document's html root; it is prefixed with the page's own `content_root` so the
+  link also holds from nested pages. Absolute hrefs (external documents, and
+  base_url-rooted ones outside deploy/html) are used verbatim.
 #}
+{%- macro peer_href(href) -%}
+  {{ href if ('://' in href or href.startswith('/')) else content_root ~ href }}
+{%- endmacro %}
 {% block menu %}
   {{ super() }}
   {% if reference_groups %}
@@ -32,14 +40,14 @@
     {% for group in reference_groups %}
     {%- if group.mode == "single_doc_title_merge" and group.links|length == 1 %}
     <p class="caption reference-group-caption" role="heading">
-      <a class="reference external reference-group-caption-link" href="{{ group.links[0].href }}">{{ group.links[0].label }}</a>
+      <a class="reference external reference-group-caption-link" href="{{ peer_href(group.links[0].href) }}">{{ group.links[0].label }}</a>
     </p>
     {%- elif group.display in ("collapsed_at_opening", "not_collapsed_at_opening") %}
     <details class="reference-group-details"{% if group.display == "not_collapsed_at_opening" %} open{% endif %}>
       <summary class="caption reference-group-caption" role="heading">{{ group.title }}</summary>
       <ul>
         {% for link in group.links %}
-        <li class="toctree-l1"><a class="reference external reference-group-link" href="{{ link.href }}">{{ link.label }}</a></li>
+        <li class="toctree-l1"><a class="reference external reference-group-link" href="{{ peer_href(link.href) }}">{{ link.label }}</a></li>
         {% endfor %}
       </ul>
     </details>
@@ -47,7 +55,7 @@
     <p class="caption reference-group-caption" role="heading"><span class="caption-text">{{ group.title }}</span></p>
     <ul>
       {% for link in group.links %}
-      <li class="toctree-l1"><a class="reference external reference-group-link" href="{{ link.href }}">{{ link.label }}</a></li>
+      <li class="toctree-l1"><a class="reference external reference-group-link" href="{{ peer_href(link.href) }}">{{ link.label }}</a></li>
       {% endfor %}
     </ul>
     {%- endif %}

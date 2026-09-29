@@ -63,9 +63,9 @@ carries nuance, this entry is the place that carries it: other pages use
       ``deploy/html/``. See :doc:`../explanation/deploy-layout`.
 
    base URL
-      The URL the deploy tree is published under. Cross-document Sphinx links
-      are absolute under it, so it is baked into every rendered page at build
-      time — including PDFs, which leave the tree.
+      The URL the deploy tree is published under. HTML in ``deploy/html/``
+      links its peers relatively and does not depend on it; output outside
+      that tree — PDFs above all — has it baked in at build time.
 
    objects.inv
       Sphinx's machine-readable index of everything a document defines. Any

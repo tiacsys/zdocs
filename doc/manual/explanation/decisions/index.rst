@@ -30,3 +30,4 @@ repeating it.
    0009-need-type-role-mapping
    0010-payload-split-by-tool
    0011-documentation-structure
+   0012-relative-cross-document-links

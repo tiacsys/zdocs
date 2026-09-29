@@ -41,8 +41,9 @@ A single ``kind: sphinx`` entry with a ``builders: [html]`` list results in:
   document's prefix;
 - a navigation entry, in this document's group, on every page of every
   document in the set — including the Doxygen ones;
-- an absolute URL under the set's base URL, which is how the entry above and
-  every cross-document link is addressed.
+- an address — relative to each peer's HTML root inside ``deploy/html/``,
+  absolute under the set's base URL everywhere else (PDFs) — which is how the
+  entry above and every cross-document link reaches it.
 
 A ``kind: doxygen`` entry produces the same shape through the other toolchain:
 a tag file instead of an inventory, doxylink instead of intersphinx.

@@ -25,11 +25,13 @@ Top level
    A mapping of document id to :ref:`document entry <registry-documents>`.
 
 ``base_url``
-   The set's :term:`base URL`. There is no validation requiring this key to be
-   present: an absent ``base_url`` resolves to the empty string, which the
-   engine then turns into a single ``"/"`` (``"".rstrip("/") + "/"``) — every
-   cross-document Sphinx link in the build would then be an absolute URL
-   rooted at ``/``. Treat this as effectively required. Overridable per build
+   The set's :term:`base URL`, used for cross-document links in output outside
+   ``deploy/html/`` (PDFs, ``html-live``); the HTML tree links its peers
+   relatively. There is no validation requiring this key to be present: an
+   absent ``base_url`` resolves to the empty string, which the engine then
+   turns into a single ``"/"`` (``"".rstrip("/") + "/"``) — those links would
+   then be absolute URLs rooted at ``/``. Treat this as effectively required
+   for any set that builds PDFs. Overridable per build
    with ``-DZDOCS_DOC_BASE_URL=…`` (:doc:`consumer-contract`).
 
 ``external_base_url``
