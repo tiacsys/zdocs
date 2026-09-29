@@ -139,21 +139,39 @@ def _classify_inner_groups(module_cdef: ET.Element, xml_dir: Path):
     return suite_refids, proc_refids
 
 
+def suite_name_from_group(group_name, qualifier=""):
+    """The ztest suite name a suite group's compoundname stands for.
+
+    With a `testmodule_suite_qualifier`, the part after its LAST occurrence
+    (``kernel_workq_user_work_module__workqueue_api`` -> ``workqueue_api`` for
+    ``"__"``), so two test modules declaring the same ZTEST_SUITE can give it
+    distinct Doxygen groups. Without a qualifier, without an occurrence of it,
+    or with nothing after it, the whole name.
+    """
+    suite = group_name.rsplit(qualifier, 1)[-1] if qualifier else group_name
+    return suite or group_name
+
+
 def _build_suite_rst(
     suite_refid, xml_dir, testspec_html_dir, api_html_dir, module_path, need_names=None,
-    depends_field=None,
+    depends_field=None, suite_qualifier="",
 ):
     """Build RST lines for one test suite group (section heading + test_case needs).
 
     ``depends_field(conditions, subject)`` decides whether a need gets the
     ``depends_on`` field (`needs_fields.depends_field`); without it, none does.
+
+    ``suite_qualifier`` (`testmodule_suite_qualifier`): the need's ``suite`` is
+    the group name after it (`suite_name_from_group`); the fallback id keeps the
+    whole group name, which is unique where the suite name need not be.
     """
     suite_xml = xml_dir / f"{suite_refid}.xml"
     if not suite_xml.exists():
         logger.warning(f"testmodule: suite XML not found: {suite_xml}")
         return []
     suite_cdef = ET.parse(suite_xml).getroot().find("compounddef")
-    suite_name = suite_cdef.findtext("compoundname", suite_refid)
+    group_name = suite_cdef.findtext("compoundname", suite_refid)
+    suite_name = suite_name_from_group(group_name, suite_qualifier)
     compound_id = suite_cdef.get("id", suite_refid)
     suite_title = suite_cdef.findtext("title", suite_name)
 
@@ -172,7 +190,7 @@ def _build_suite_rst(
         lines.extend(
             build_need_rst(
                 info, suite_name, module_path, suite_title, need_names=need_names,
-                depends_field=with_depends,
+                depends_field=with_depends, id_scope=group_name,
             ).splitlines()
         )
         lines.append("")
@@ -540,6 +558,7 @@ class TestModuleDirective(Directive):
                 depends_field=lambda conditions, subject: depends_field(
                     env, conditions, subject
                 ),
+                suite_qualifier=getattr(app.config, "testmodule_suite_qualifier", ""),
             )
         for proc_refid in proc_refids:
             all_rst += _build_proc_group_rst(
@@ -763,6 +782,9 @@ def setup(app):
     app.add_config_value("twisterinfo_project_name", "", "env")
     app.add_config_value("twisterinfo_project_version", "", "env")
     app.add_config_value("dump_generated_rst", "", "env")
+    # Separator in a suite group's Doxygen name: the need's `suite` is the part
+    # after its last occurrence (suite_name_from_group). Empty = the whole name.
+    app.add_config_value("testmodule_suite_qualifier", "", "env")
     app.add_config_value(
         "testmodule_need_types",
         {"case": "test_case", "procedure": "test_procedure", "result": "test_result"},

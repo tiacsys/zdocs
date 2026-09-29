@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<doxygen>
+  <compounddef id="group__m1__module" kind="group">
+    <compoundname>m1_module</compoundname>
+    <title>m1 Test Module</title>
+    <innergroup refid="group__m1____workqueue__api">m1__workqueue_api</innergroup>
+  </compounddef>
+</doxygen>

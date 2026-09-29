@@ -104,6 +104,36 @@ locate that module's ``testcase.yaml`` for the rendered scenario table. Every
 ``ZTEST``/``ZTEST_SUITE``/... in the named group and its inner suite/procedure
 groups becomes one need each — nothing is written by hand per test case.
 
+A test case need's ``suite`` field is its inner suite group's name, so name
+that group after the ``ZTEST_SUITE``: ``testreport`` finds the test case for a
+twister result by the pair (suite, function). Two test modules that declare the
+same ztest suite (Zephyr's workq ``user_work`` and ``work_queue`` both declare
+``workqueue_api``) cannot share one group, though, because then both module
+pages render every test in it and the need ids collide. So give each module its
+own group, and set a qualifier in the ``conf.py`` of the document that holds
+the ``testmodule`` directives, after the ``configure()`` call:
+
+.. code-block:: python
+
+   testmodule_suite_qualifier = "__"
+
+.. code-block:: c
+
+   /** @defgroup kernel_workq_user_work_module__workqueue_api workqueue_api ZTest suite
+    *  @ingroup kernel_workq_user_work_module */
+
+The suite is the part of the group name after the qualifier's **last**
+occurrence (here ``workqueue_api``). A group name without the qualifier is used
+whole, and so is every name when the value is unset (the default, ``""``). The
+qualifier splits only the Doxygen group name the suite is derived from. The
+(suite, function) key a result is correlated by does not change, and it now
+sees the real suite name, which is the point. The fallback id of a test case
+without ``@testid``, ``testspec-<group>-<function>``, keeps the whole group
+name: two modules may have a function of the same name in the same suite, and
+their ids must not collide. A result of such a function is still ambiguous by
+(suite, function), and ``testreport`` skips it with a warning, as it does for
+any pair that two modules document.
+
 .. code-block:: rst
 
    .. testreport:: twister_report.xml

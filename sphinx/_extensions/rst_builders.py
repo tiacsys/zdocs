@@ -77,11 +77,15 @@ def _depends_on_rst(info, depends_field):
 
 
 def build_need_rst(
-    info, suite_name, module_path="", suite_title="", need_names=None, depends_field=False
+    info, suite_name, module_path="", suite_title="", need_names=None, depends_field=False,
+    id_scope=None,
 ):
     """Build the RST block for a single test_case need.
 
     ``depends_field``: set the ``depends_on`` field (see `_depends_on_rst`).
+    ``id_scope``: what the fallback id ``testspec-<scope>-<function>`` is scoped
+    by — the suite's Doxygen group name, which differs from ``suite_name`` under
+    a `testmodule_suite_qualifier`; defaults to ``suite_name``.
     """
     name = info["name"]
     test_id = info["test_id"]
@@ -100,8 +104,9 @@ def build_need_rst(
     if test_id:
         need_id = test_id
     else:
-        need_id = f"testspec-{suite_name}-{name}"
-        logger.warning(f"testmodule: {suite_name}/{name} has no @testid annotation")
+        scope = id_scope or suite_name
+        need_id = f"testspec-{scope}-{name}"
+        logger.warning(f"testmodule: {scope}/{name} has no @testid annotation")
 
     lines = [f".. {_need_name(need_names, 'case')}:: {title}"]
     lines.append(f"   :id: {need_id}")
