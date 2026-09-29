@@ -125,11 +125,22 @@ def configure(
     """
     doc_dir = Path(doc_dir)
     folder = doc_dir.name
-    project = project or folder.replace("-", " ").title()
 
     doc_id = os.environ.get("ZDOCS_DOC_ID", folder)
     project_base = _env_path("ZDOCS_PROJECT_BASE")
     registry = _env_path("ZDOCS_REGISTRY")
+
+    # `project` defaults to this document's own registry `title:` - the SAME
+    # field every OTHER document's cross-document nav link already displays
+    # for it (see docrefs.navlinks()'s `meta.get("title", doc_id)`) - not a
+    # name guessed from the folder, so a document cannot show one title to
+    # its siblings and a different one to itself. An explicit `project=`
+    # argument (a conf.py's own deliberate choice) still wins; the
+    # folder-derived guess is the last resort, for a standalone document
+    # with no registry at all.
+    if project is None and registry and registry.is_file():
+        project = docrefs._registry(registry)["documents"].get(doc_id, {}).get("title")
+    project = project or folder.replace("-", " ").title()
 
     # -- Extensions -----------------------------------------------------------
     #
@@ -482,9 +493,20 @@ def configure(
     # choices.
     if _cmake_bool_env("ZDOCS_DRAFT_MODE"):
         namespace["html_css_files"].append("draft.css")
+    # zdocs_doc_id: the per-document headline layout.html renders at the top
+    # of every page needs it (doc_id is otherwise only a bare conf.py global,
+    # which templates cannot read). Unconditional - unlike reference_groups
+    # below, a standalone document with no registry still has a doc_id and
+    # still gets the headline.
+    namespace["html_context"] = {"zdocs_doc_id": doc_id}
     if refs is not None:
         # Consumed by the cross-document navigation in the page template.
-        namespace["html_context"] = {"reference_groups": refs.reference_groups}
+        namespace["html_context"]["reference_groups"] = refs.reference_groups
+        # Sidebar logo target (_templates/layout.html's `sidebartitle`
+        # override) — None when the registry declares no "landing" group,
+        # in which case the template falls back to the theme's own
+        # original target (this document's own root).
+        namespace["html_context"]["landing_url"] = refs.landing_url
 
     if testmodule is not None:
         namespace["testmodule_xml_dir"] = testmodule["xml_dir"]

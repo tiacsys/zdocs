@@ -106,11 +106,24 @@ _GROUP_MODES = ("exclude_if_selected", "single_doc_title_merge", "always_keep")
 #:                              expanded when the page loads.
 #:   "no-display"               the group is not shown at all, regardless
 #:                              of how many links it would otherwise have.
+#:   "landing"                  like "no-display" (never shown in
+#:                              reference_groups), AND marks this group's
+#:                              one document as the registry's landing
+#:                              page — the target of the sidebar logo link
+#:                              (see docrefs.landing_doc_id() /
+#:                              Refs.landing_url). At most one group in
+#:                              the whole registry may use this value, and
+#:                              that group must resolve to exactly one
+#:                              document (_validate() enforces both). The
+#:                              group's own `id:`/`title:` are irrelevant
+#:                              when this is set — nothing reads them, since
+#:                              the group is never rendered.
 _GROUP_DISPLAYS = (
     "disabled_collapsing",
     "collapsed_at_opening",
     "not_collapsed_at_opening",
     "no-display",
+    "landing",
 )
 
 #: Document ``kind:`` values (see documents.yaml's per-document field docs).
@@ -158,6 +171,33 @@ def _validate(data):
             raise ValueError(
                 f"docrefs: document '{doc_id}' has group '{group}', which is not "
                 f"a declared group id (known groups: {sorted(group_ids)})"
+            )
+
+    # At most one "landing" group registry-wide, and — since docrefs.
+    # landing_doc_id() picks THE document straight off that group's
+    # membership, with no further disambiguation — exactly one document in
+    # it. Checked here (not lazily in landing_doc_id()) so a registry typo
+    # (two documents parked in the landing group, or none) fails loudly at
+    # configure time instead of silently picking an arbitrary document or
+    # silently producing no landing link at all.
+    landing_groups = [g["id"] for g in groups if g.get("display") == "landing"]
+    if len(landing_groups) > 1:
+        raise ValueError(
+            f"docrefs: more than one group has 'display: \"landing\"' "
+            f"({sorted(landing_groups)}) — at most one is allowed registry-wide"
+        )
+    if landing_groups:
+        landing_group_id = landing_groups[0]
+        landing_docs = [
+            doc_id
+            for doc_id, meta in data.get("documents", {}).items()
+            if meta.get("group") == landing_group_id
+        ]
+        if len(landing_docs) != 1:
+            raise ValueError(
+                f"docrefs: group '{landing_group_id}' has 'display: \"landing\"', "
+                f"which requires exactly one document in it, found "
+                f"{sorted(landing_docs)}"
             )
         kind = meta.get("kind", "sphinx")
         if kind not in _KINDS:
@@ -269,13 +309,38 @@ def _groups(data):
     ]
 
 
+def landing_doc_id(data):
+    """Registry id of the document in the (at most one) group with
+    ``display: "landing"``, or ``None`` if the registry declares no such
+    group.
+
+    That group's own ``id:``/``title:`` are irrelevant — see
+    documents.yaml's ``display:`` field docs — and it never appears in
+    ``reference_groups`` (``grouped_links()`` skips "landing" groups the
+    same way it skips "no-display" ones). ``_validate()`` (already run by
+    ``_registry()``, which every caller goes through) has already
+    guaranteed there is at most one such group and that it resolves to
+    exactly one document, so no further checking is needed here.
+    """
+    for group in data["groups"]:
+        if group.get("display") != "landing":
+            continue
+        group_id = group["id"]
+        for doc_id, meta in data["documents"].items():
+            if meta.get("group") == group_id:
+                return doc_id
+    return None
+
+
 def grouped_links(this_doc, data, href_fn):
     """Ordered grouped cross-document links for ``this_doc``.
 
     Returns ``[{"id", "title", "mode", "display", "links": [{"label", "href"}]}]``:
       * groups in registry ``groups:`` order; documents in registry order;
-      * groups with ``display: "no-display"`` are dropped entirely, as are
-        groups left empty after filtering (no dangling heading);
+      * groups with ``display: "no-display"`` or ``"landing"`` are dropped
+        entirely, as are groups left empty after filtering (no dangling
+        heading) — a "landing" group's one document is linked from the
+        sidebar logo instead (see ``landing_doc_id()``), not listed here;
       * ``label`` is the document ``title``; ``href`` is ``href_fn(doc_id, meta)``;
       * ``this_doc`` is excluded from its own group's links, unless that
         group's ``mode`` is ``"always_keep"`` (see ``_GROUP_MODES``).
@@ -283,7 +348,7 @@ def grouped_links(this_doc, data, href_fn):
     documents = data["documents"]
     result = []
     for group in _groups(data):
-        if group["display"] == "no-display":
+        if group["display"] in ("no-display", "landing"):
             continue
         keep_current = group["mode"] == "always_keep"
         links = []
@@ -608,6 +673,7 @@ class Refs:
         rel_urls=None,
         deploy_dirs=None,
         testmodule=None,
+        landing_url=None,
     ):
         self.reference_groups = reference_groups
         self.intersphinx_mapping = intersphinx_mapping
@@ -617,6 +683,14 @@ class Refs:
         self.version_project = version_project
         self.rel_urls = rel_urls or {}
         self.deploy_dirs = deploy_dirs or {}
+        #: URL to the registry's landing document (docrefs.landing_doc_id()),
+        #: relative to THIS document's own html root — same-deploy-tree
+        #: relative, like rel_urls, deliberately NOT base_url-absolute like
+        #: reference_groups' own links: the landing page always lives in the
+        #: same deploy tree as every other document, so a relative link
+        #: survives a base_url/host change untouched. ``None`` when the
+        #: registry declares no "landing" group.
+        self.landing_url = landing_url
         #: This document's own resolved ``testmodule:`` block (step 27), or
         #: ``None`` when it has none — the registry entry IS the opt-in
         #: signal ``zdocs_conf.configure()`` uses to load the ``test_module``
@@ -914,6 +988,7 @@ def load(this_doc=None, registry=None):
         rel_urls=rel_urls,
         deploy_dirs=deploy_dirs,
         testmodule=testmodule,
+        landing_url=rel_urls.get(landing_doc_id(data)),
     )
 
 

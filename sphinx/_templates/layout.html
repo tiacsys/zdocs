@@ -25,7 +25,99 @@
     not_collapsed_at_opening
     otherwise               a plain caption and list.
 #}
+{% block sidebartitle %}
+  {#
+    Same markup as the theme's own `sidebartitle` (sphinx_rtd_theme's
+    layout.html) - reproduced here, not reached via super(), because the
+    ONE thing that has to change is the home link's `href`, and the
+    theme hardcodes it inline with no override hook.
+
+    The theme points it at `pathto(root_doc)` - an IN-BUILD cross-
+    reference, resolvable only within THIS document's own doctree. The
+    registry's landing document is a wholly SEPARATE Sphinx build;
+    `pathto()` cannot reach it, so this is instead the plain,
+    deploy-relative `landing_url` docrefs/zdocs_conf resolve into
+    html_context (falls back to the theme's own original
+    `pathto(root_doc)` target when the registry declares no "landing"
+    group - e.g. a standalone document with no REGISTRY at all).
+
+    `landing_url` is relative to THIS DOCUMENT's own html root (e.g.
+    "../html-landing", a sibling of "rcst-interface" under "html/") -
+    correct only on a page AT that root. `pathto()` self-adjusts for the
+    CURRENT page's own nesting depth; a plain string can't, so depth is
+    added back the same way test_module.py's `page_prefix` does for the
+    same kind of root-relative, cross-build URL: `pagename` (e.g.
+    "wired/mechanical") has one path segment per directory level below
+    the root, so that many "../" reach the root from here.
+
+    THIS document's own root is not orphaned by the swap: the
+    per-document headline below (`menu` block) links there instead - see
+    its own comment.
+  #}
+  {%- set _logo_url = logo_url|default(pathto('_static/' + (logo or ""), 1)) %}
+  {%- set _root_doc = root_doc|default(master_doc) %}
+  {%- set _landing_href = ('../' * pagename.count('/')) + landing_url if landing_url else None %}
+  <a href="{{ _landing_href or pathto(_root_doc) }}"{% if not theme_logo_only %} class="icon icon-home"{% endif %}>
+    {% if not theme_logo_only %}{{ project }}{% endif %}
+    {%- if logo or logo_url %}
+      <img src="{{ _logo_url }}" class="logo" alt="{{ _('Logo') }}"/>
+    {%- endif %}
+  </a>
+
+  {%- if READTHEDOCS or DEBUG %}
+    {%- if theme_version_selector or theme_language_selector %}
+      <div class="switch-menus">
+        <div class="version-switch"></div>
+        <div class="language-switch"></div>
+      </div>
+    {%- endif %}
+  {%- endif %}
+
+  {%- include "searchbox.html" %}
+{%- endblock %}
+
 {% block menu %}
+  {#
+    Per-document headline, as a title over this sidebar's own table of
+    contents: which DOCUMENT is currently browsed, prominently - the
+    static top-left icon/home area (`sidebartitle`, above) now always
+    shows the deployed SET's own logo, linking to the registry's landing
+    page - constant across every document in it, not which one is open,
+    and no longer to each document's own root either. Two lines -
+    `project` (the document's own title) then `zdocs_doc_id` and the
+    full `version` (base version + VERSION_APPEND - see
+    zdocs_conf.configure()).
+
+    Inside `menu`, not `sidebartitle`: heads the toctree `menu` renders
+    right below via super(), so it reads as "here is the document, and
+    here is its table of contents" as one unit, and scrolls with the
+    tree instead of staying fixed above it.
+
+    Linked to `pathto(root_doc)` - THIS document's own root page, the
+    theme's ORIGINAL `sidebartitle` target before the swap above moved
+    that block's own link to the registry's landing page instead.
+
+    Wrapped in a plain <div>, not left as a bare <a> sibling of the
+    toctree <ul> super() renders below: the theme's own JS
+    (theme.js's `init()`) prepends a "toctree-expand" open/close <button>
+    to EVERY <a> that is a DOM-sibling of a <ul> under `.wy-menu-vertical`
+    (`$(".wy-menu-vertical ul").siblings("a")`) - normally only real
+    toctree-parent links (siblings of THEIR OWN nested <ul>, one level
+    down), which is what makes those legitimately expand/collapse. Left
+    unwrapped, this headline <a> is ALSO such a sibling (of the toctree's
+    outermost <ul>) and gets the same button - except its click handler
+    does `.closest("li")`, which finds none here (this isn't inside an
+    <li>), so the button renders but does nothing. The wrapper <div>
+    breaks the sibling relationship the JS's selector depends on, so it
+    never matches this <a> in the first place - not a CSS hide of a
+    button still added.
+  #}
+  <div class="zdocs-doc-headline-wrap">
+    <a class="zdocs-doc-headline" href="{{ pathto(root_doc|default(master_doc)) }}">
+      <div class="zdocs-doc-headline-title">{{ project }}</div>
+      <div class="zdocs-doc-headline-meta">{{ zdocs_doc_id }} &middot; {{ version }}</div>
+    </a>
+  </div>
   {{ super() }}
   {% if reference_groups %}
   <div class="toctree-wrapper compound reference-groups-wrapper">
