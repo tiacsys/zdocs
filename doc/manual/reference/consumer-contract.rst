@@ -91,7 +91,8 @@ layout, not toggled from outside it.
    ``symbol_needs:`` block — the ``implementation`` type and ``satisfies``
    link (:doc:`directives-and-roles`). Declaring the ``satisfies`` link in
    this project-wide file is also what lets a requirements document show the
-   link's incoming side.
+   link's incoming side. One field is optional: ``depends_on`` (the
+   ``@kconfig_depends`` conditions) is set only if declared here.
 
    This variable is real and load-bearing — every sample and fixture in this
    repository that uses sphinx-needs sets it — but it is not mentioned

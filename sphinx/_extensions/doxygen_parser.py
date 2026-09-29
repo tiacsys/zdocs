@@ -21,6 +21,7 @@ __all__ = [
     "detail_rst_lines",
     "parse_memberdef",
     "requirement_uids",
+    "kconfig_depends",
     "SymbolInfo",
     "parse_symbol",
     "load_group_index",
@@ -38,6 +39,8 @@ class MemberInfo(TypedDict):
     detail_lines: list[str]
     see_rst: str
     body_sections: list[list[str]]
+    depends_on: list[str]
+    depends_label: str
 
 
 class SymbolInfo(TypedDict):
@@ -47,6 +50,8 @@ class SymbolInfo(TypedDict):
     brief: str
     source_file: str
     doxygen_url: str
+    depends_on: list[str]
+    depends_label: str
 
 
 class RefLinks(NamedTuple):
@@ -392,6 +397,8 @@ def parse_memberdef(
         # is why this stayed hidden.
         for xrefsect in dd.iter("xrefsect"):
             xid = xrefsect.get("id", "")
+            if xid.startswith(KCONFIG_DEPENDS + "_"):
+                continue  # a condition, never an id or a requirement: kconfig_depends()
             xpara = xrefsect.find("xrefdescription/para")
             xdesc = "".join(xpara.itertext()).strip() if xpara is not None else ""
             if "testids" in xid:
@@ -417,6 +424,8 @@ def parse_memberdef(
         if uid not in req_ids:
             req_ids.append(uid)
 
+    depends_label, depends_on = kconfig_depends(dd)
+
     ibd = memberdef.find("inbodydescription")
     body_sections: list[list[str]] = []
     if ibd is not None:
@@ -436,7 +445,41 @@ def parse_memberdef(
         detail_lines=detail_lines,
         see_rst=see_rst,
         body_sections=body_sections,
+        depends_on=depends_on,
+        depends_label=depends_label,
     )
+
+
+#: The ``\xrefitem`` key of ``@kconfig_depends{<condition>}``: the Kconfig
+#: condition a test case or API symbol is built under.
+KCONFIG_DEPENDS = "kconfig_depends"
+
+
+def kconfig_depends(dd: ET.Element | None) -> tuple[str, list[str]]:
+    """``(label, conditions)`` of the ``kconfig_depends`` xrefitems in ``dd``.
+
+    ``@kconfig_depends{<condition>}`` is an alias for ``\\xrefitem
+    kconfig_depends "Depends on" "Kconfig dependencies" <condition>``. Doxygen
+    1.16 merges adjacent commands into ONE xrefsect with a ``<para>`` per
+    condition, while commands elsewhere in the comment get xrefsects of their
+    own; like ``@testid``, they can sit in the last paragraph or in the last
+    list item, so the whole description is searched. Each condition is kept
+    verbatim (``(CONFIG_A && !CONFIG_B) || CONFIG_C``), once, in source order,
+    without the trailing space Doxygen adds. ``label`` is the xrefitem's title
+    as the consumer's alias spells it ("Depends on"), or ``""`` if there is none.
+    """
+    label, conditions = "", []
+    if dd is None:
+        return label, conditions
+    for xrefsect in dd.iter("xrefsect"):
+        if not xrefsect.get("id", "").startswith(KCONFIG_DEPENDS + "_"):
+            continue
+        label = label or elem_text(xrefsect.find("xreftitle"))
+        for para in xrefsect.findall("xrefdescription/para"):
+            condition = "".join(para.itertext()).strip()
+            if condition and condition not in conditions:
+                conditions.append(condition)
+    return label, conditions
 
 
 def requirement_uids(memberdef: ET.Element, relation: str) -> list[str]:
@@ -484,6 +527,7 @@ def parse_symbol(memberdef: ET.Element, html_dir: str) -> SymbolInfo:
         if fpath:
             source_file = f"{fpath} (line {line})" if line else fpath
 
+    depends_label, depends_on = kconfig_depends(memberdef.find("detaileddescription"))
     return SymbolInfo(
         name=memberdef.findtext("name", "").strip(),
         kind=memberdef.get("kind", ""),
@@ -491,6 +535,8 @@ def parse_symbol(memberdef: ET.Element, html_dir: str) -> SymbolInfo:
         brief=para_text(memberdef.find("briefdescription/para"), RefLinks(local=html_dir)),
         source_file=source_file,
         doxygen_url=doxygen_url,
+        depends_on=depends_on,
+        depends_label=depends_label,
     )
 
 

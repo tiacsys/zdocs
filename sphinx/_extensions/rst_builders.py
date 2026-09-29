@@ -57,8 +57,32 @@ def _need_name(need_names, role):
     return _DEFAULT_NEED_NAMES[role]
 
 
-def build_need_rst(info, suite_name, module_path="", suite_title="", need_names=None):
-    """Build the RST block for a single test_case need."""
+def _depends_on_rst(info, depends_field):
+    """``(option lines, body lines)`` for a need's Kconfig conditions.
+
+    The body line always renders, labelled as the consumer's alias titles the
+    xrefitem ("Depends on"), because a consumer's need layout decides which
+    fields show. The ``depends_on`` field is set only when ``depends_field``
+    says the consumer declared it: an undeclared option is an "Unknown option"
+    warning per need. The conditions are joined with ``"; "``, which no Kconfig
+    expression contains.
+    """
+    conditions = info.get("depends_on") or []
+    if not conditions:
+        return [], []
+    options = [f"   :depends_on: {'; '.join(conditions)}"] if depends_field else []
+    label = info.get("depends_label") or "Depends on"
+    body = [f"   **{label}:** " + "; ".join(f"``{c}``" for c in conditions), ""]
+    return options, body
+
+
+def build_need_rst(
+    info, suite_name, module_path="", suite_title="", need_names=None, depends_field=False
+):
+    """Build the RST block for a single test_case need.
+
+    ``depends_field``: set the ``depends_on`` field (see `_depends_on_rst`).
+    """
     name = info["name"]
     test_id = info["test_id"]
     req_ids = info["req_ids"]
@@ -90,6 +114,8 @@ def build_need_rst(info, suite_name, module_path="", suite_title="", need_names=
     lines.append(f"   :status: {status}")
     if req_ids:
         lines.append(f"   :{_need_name(need_names, 'verifies')}: {'; '.join(req_ids)}")
+    depends_options, depends_body = _depends_on_rst(info, depends_field)
+    lines += depends_options
     lines.append("")
 
     if brief:
@@ -111,6 +137,8 @@ def build_need_rst(info, suite_name, module_path="", suite_title="", need_names=
         for sline in section_lines:
             lines.append(f"   {sline}" if sline else "")
         lines.append("")
+
+    lines += depends_body
 
     if source_file and doxygen_url:
         lines.append(f"   **Source:** `{source_file} <{doxygen_url}>`__")
@@ -297,14 +325,15 @@ def symbol_need_id(name, need_names=None):
     return f"{prefix}-{name}"
 
 
-def build_symbol_need_rst(info, need_names=None):
+def build_symbol_need_rst(info, need_names=None, depends_field=False):
     """Build the RST block for one API symbol's need (the ``implementation`` role).
 
     ``info`` is a `doxygen_parser.parse_symbol` result. The requirements it
     satisfies become the ``satisfies`` link, so each requirement's page lists
     the symbol under the link's incoming name, beside its verifying test cases.
     The kind, declaration and Doxygen page go in the body, where no field has
-    to be declared for them.
+    to be declared for them. ``depends_field``: set the ``depends_on`` field
+    (see `_depends_on_rst`).
     """
     name = info["name"]
     lines = [
@@ -313,6 +342,8 @@ def build_symbol_need_rst(info, need_names=None):
     ]
     if info["satisfies"]:
         lines.append(f"   :{_need_name(need_names, 'satisfies')}: {'; '.join(info['satisfies'])}")
+    depends_options, depends_body = _depends_on_rst(info, depends_field)
+    lines += depends_options
     lines.append("")
 
     kind = info["kind"] or "symbol"
@@ -320,6 +351,7 @@ def build_symbol_need_rst(info, need_names=None):
     if info["doxygen_url"]:
         head = f"`{kind.capitalize()} {name} <{info['doxygen_url']}>`__"
     lines += [f"   {head}" + (f" — {info['brief']}" if info["brief"] else ""), ""]
+    lines += depends_body
     if info["source_file"]:
         lines += [f"   **Declared in:** ``{info['source_file']}``", ""]
     return "\n".join(lines)

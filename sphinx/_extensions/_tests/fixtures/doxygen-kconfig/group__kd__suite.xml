@@ -1,0 +1,141 @@
+<?xml version='1.0' encoding='UTF-8' standalone='no'?>
+<doxygen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="compound.xsd" version="1.16.1" xml:lang="en-US">
+  <compounddef id="group__kd__suite" kind="group">
+    <compoundname>kd_suite</compoundname>
+    <title>Kconfig-dependent test cases</title>
+    <sectiondef kind="func">
+      <memberdef kind="function" id="group__kd__suite_1ga9b90e51a702c2776f071f924102a70e9" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>void</type>
+        <definition>void test_one</definition>
+        <argsstring>(void)</argsstring>
+        <name>test_one</name>
+        <param>
+          <type>void</type>
+        </param>
+        <briefdescription>
+<para>One condition, next to a test id and a requirement. </para>
+        </briefdescription>
+        <detaileddescription>
+<para><xrefsect id="kconfig_depends_1_kconfig_depends000001"><xreftitle>Depends on</xreftitle><xrefdescription><para>CONFIG_ASSERT </para>
+</xrefdescription></xrefsect><xrefsect id="reqrefs_1_reqrefs000001"><xreftitle>Requirement</xreftitle><xrefdescription><para>REQ-1 </para>
+</xrefdescription></xrefsect><xrefsect id="testids_1_testids000001"><xreftitle>Test ID</xreftitle><xrefdescription><para>TC-KD-001 </para>
+</xrefdescription></xrefsect></para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="a.c" line="14" column="6" bodyfile="a.c" bodystart="14" bodyend="14"/>
+      </memberdef>
+      <memberdef kind="function" id="group__kd__suite_1ga6fa39b14efd92abc882e200418e66789" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>void</type>
+        <definition>void test_two</definition>
+        <argsstring>(void)</argsstring>
+        <name>test_two</name>
+        <param>
+          <type>void</type>
+        </param>
+        <briefdescription>
+<para>Two adjacent commands. </para>
+        </briefdescription>
+        <detaileddescription>
+<para><xrefsect id="kconfig_depends_1_kconfig_depends000002"><xreftitle>Depends on</xreftitle><xrefdescription><para>defined(CONFIG_HW_STACK_PROTECTION) &amp;&amp; !defined(CONFIG_ARCH_POSIX) </para>
+<para>CONFIG_USERSPACE </para>
+</xrefdescription></xrefsect><xrefsect id="testids_1_testids000002"><xreftitle>Test ID</xreftitle><xrefdescription><para>TC-KD-002 </para>
+</xrefdescription></xrefsect></para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="a.c" line="22" column="6" bodyfile="a.c" bodystart="22" bodyend="22"/>
+      </memberdef>
+      <memberdef kind="function" id="group__kd__suite_1ga9bbefce8d0245e6068f9e7d826c84cbb" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>void</type>
+        <definition>void test_three</definition>
+        <argsstring>(void)</argsstring>
+        <name>test_three</name>
+        <param>
+          <type>void</type>
+        </param>
+        <briefdescription>
+<para>Operators and parentheses. </para>
+        </briefdescription>
+        <detaileddescription>
+<para><xrefsect id="kconfig_depends_1_kconfig_depends000003"><xreftitle>Depends on</xreftitle><xrefdescription><para>(CONFIG_A &amp;&amp; !CONFIG_B) || CONFIG_C </para>
+</xrefdescription></xrefsect><xrefsect id="testids_1_testids000003"><xreftitle>Test ID</xreftitle><xrefdescription><para>TC-KD-003 </para>
+</xrefdescription></xrefsect></para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="a.c" line="29" column="6" bodyfile="a.c" bodystart="29" bodyend="29"/>
+      </memberdef>
+      <memberdef kind="function" id="group__kd__suite_1ga18280b1a90b5257e54bdc003482a8d69" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>void</type>
+        <definition>void test_four</definition>
+        <argsstring>(void)</argsstring>
+        <name>test_four</name>
+        <param>
+          <type>void</type>
+        </param>
+        <briefdescription>
+<para>Details ending in a list. </para>
+        </briefdescription>
+        <detaileddescription>
+<para>Expected result:<itemizedlist>
+<listitem><para>a</para>
+</listitem><listitem><para>b</para>
+<para><xrefsect id="kconfig_depends_1_kconfig_depends000004"><xreftitle>Depends on</xreftitle><xrefdescription><para>CONFIG_X </para>
+</xrefdescription></xrefsect></para>
+</listitem></itemizedlist>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="a.c" line="40" column="6" bodyfile="a.c" bodystart="40" bodyend="40"/>
+      </memberdef>
+      <memberdef kind="function" id="group__kd__suite_1ga52483964f244d59079217804e3fd7209" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>void</type>
+        <definition>void test_five</definition>
+        <argsstring>(void)</argsstring>
+        <name>test_five</name>
+        <param>
+          <type>void</type>
+        </param>
+        <briefdescription>
+<para>Commands that are not adjacent. </para>
+        </briefdescription>
+        <detaileddescription>
+<para><xrefsect id="kconfig_depends_1_kconfig_depends000005"><xreftitle>Depends on</xreftitle><xrefdescription><para>CONFIG_FIRST</para>
+</xrefdescription></xrefsect></para>
+<para>Some prose between them.</para>
+<para><xrefsect id="kconfig_depends_1_kconfig_depends000006"><xreftitle>Depends on</xreftitle><xrefdescription><para>IS_ENABLED(CONFIG_A, CONFIG_B) </para>
+</xrefdescription></xrefsect><xrefsect id="testids_1_testids000004"><xreftitle>Test ID</xreftitle><xrefdescription><para>TC-KD-005 </para>
+</xrefdescription></xrefsect></para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="a.c" line="52" column="6" bodyfile="a.c" bodystart="52" bodyend="52"/>
+      </memberdef>
+      <memberdef kind="function" id="group__kd__suite_1gaa7c78b8460d679069d8f4c17af5d936c" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>void</type>
+        <definition>void test_six</definition>
+        <argsstring>(void)</argsstring>
+        <name>test_six</name>
+        <param>
+          <type>void</type>
+        </param>
+        <briefdescription>
+<para>No condition. </para>
+        </briefdescription>
+        <detaileddescription>
+<para><xrefsect id="reqrefs_1_reqrefs000002"><xreftitle>Requirement</xreftitle><xrefdescription><para>REQ-2 </para>
+</xrefdescription></xrefsect></para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="a.c" line="58" column="6" bodyfile="a.c" bodystart="58" bodyend="58"/>
+      </memberdef>
+    </sectiondef>
+    <briefdescription>
+    </briefdescription>
+    <detaileddescription>
+    </detaileddescription>
+  </compounddef>
+</doxygen>

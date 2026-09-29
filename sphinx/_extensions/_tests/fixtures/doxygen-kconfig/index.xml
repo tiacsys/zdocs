@@ -1,0 +1,25 @@
+<?xml version='1.0' encoding='UTF-8' standalone='no'?>
+<doxygenindex xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="index.xsd" version="1.16.1" xml:lang="en-US">
+  <compound refid="a_8c" kind="file"><name>a.c</name>
+    <member refid="group__kd__suite_1ga9b90e51a702c2776f071f924102a70e9" kind="function"><name>test_one</name></member>
+    <member refid="group__kd__suite_1ga6fa39b14efd92abc882e200418e66789" kind="function"><name>test_two</name></member>
+    <member refid="group__kd__suite_1ga9bbefce8d0245e6068f9e7d826c84cbb" kind="function"><name>test_three</name></member>
+    <member refid="group__kd__suite_1ga18280b1a90b5257e54bdc003482a8d69" kind="function"><name>test_four</name></member>
+    <member refid="group__kd__suite_1ga52483964f244d59079217804e3fd7209" kind="function"><name>test_five</name></member>
+    <member refid="group__kd__suite_1gaa7c78b8460d679069d8f4c17af5d936c" kind="function"><name>test_six</name></member>
+  </compound>
+  <compound refid="group__kd__suite" kind="group"><name>kd_suite</name>
+    <member refid="group__kd__suite_1ga9b90e51a702c2776f071f924102a70e9" kind="function"><name>test_one</name></member>
+    <member refid="group__kd__suite_1ga6fa39b14efd92abc882e200418e66789" kind="function"><name>test_two</name></member>
+    <member refid="group__kd__suite_1ga9bbefce8d0245e6068f9e7d826c84cbb" kind="function"><name>test_three</name></member>
+    <member refid="group__kd__suite_1ga18280b1a90b5257e54bdc003482a8d69" kind="function"><name>test_four</name></member>
+    <member refid="group__kd__suite_1ga52483964f244d59079217804e3fd7209" kind="function"><name>test_five</name></member>
+    <member refid="group__kd__suite_1gaa7c78b8460d679069d8f4c17af5d936c" kind="function"><name>test_six</name></member>
+  </compound>
+  <compound refid="kconfig_depends" kind="page"><name>kconfig_depends</name>
+  </compound>
+  <compound refid="reqrefs" kind="page"><name>reqrefs</name>
+  </compound>
+  <compound refid="testids" kind="page"><name>testids</name>
+  </compound>
+</doxygenindex>

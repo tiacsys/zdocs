@@ -1,0 +1,14 @@
+# Regenerate: doxygen Doxyfile with kd.c as src/a.c, then copy index.xml and
+# group__kd__suite.xml from out/xml here.
+PROJECT_NAME = kd
+INPUT = src
+OUTPUT_DIRECTORY = out
+STRIP_FROM_PATH = src
+GENERATE_HTML = NO
+GENERATE_LATEX = NO
+GENERATE_XML = YES
+EXTRACT_ALL = YES
+QUIET = YES
+ALIASES += "kconfig_depends{1}=\xrefitem kconfig_depends \"Depends on\" \"Kconfig dependencies\" \1"
+ALIASES += "reqref{1}=\xrefitem reqrefs \"Requirement\" \"Requirements\" \1"
+ALIASES += "testid{1}=\xrefitem testids \"Test ID\" \"Test IDs\" \1"

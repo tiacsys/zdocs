@@ -23,6 +23,7 @@ from docutils.parsers.rst import Directive
 from docutils.statemachine import ViewList
 from doxygen_parser import load_group_index, parse_symbol
 from input_tracking import _note_input
+from needs_fields import depends_field
 from rst_builders import build_symbol_need_rst
 
 from sphinx.util import logging
@@ -54,13 +55,17 @@ def _compounds(xml_dir, group=None):
     ]
 
 
-def symbol_needs_rst(xml_dir, html_dir, group=None, need_names=None, note_input=None):
+def symbol_needs_rst(
+    xml_dir, html_dir, group=None, need_names=None, note_input=None, depends_field=None
+):
     """RST lines for the symbol needs of ``group`` (or the whole project).
 
     With no group, the needs are sectioned by compound (group or file), each
     heading taken from the compound's title. A member is emitted once, where
     Doxygen defines it, however many compounds list it. ``note_input`` is
-    called with every XML file read.
+    called with every XML file read. ``depends_field(conditions, subject)``
+    decides whether a need gets the ``depends_on`` field
+    (`needs_fields.depends_field`); without it, none does.
     """
     xml_dir = Path(xml_dir)
     lines, seen = [], set()
@@ -77,7 +82,11 @@ def symbol_needs_rst(xml_dir, html_dir, group=None, need_names=None, note_input=
             if md.find("satisfies") is None or md.get("id") in seen:
                 continue
             seen.add(md.get("id"))
-            blocks += build_symbol_need_rst(parse_symbol(md, html_dir), need_names).splitlines()
+            info = parse_symbol(md, html_dir)
+            with_depends = bool(depends_field) and depends_field(
+                info["depends_on"], f"symbolneeds: {info['name']}"
+            )
+            blocks += build_symbol_need_rst(info, need_names, with_depends).splitlines()
             blocks.append("")
         if not blocks:
             continue
@@ -124,6 +133,9 @@ class SymbolNeedsDirective(Directive):
             rst = symbol_needs_rst(
                 xml_dir, html_dir, group, _need_names_from_config(config),
                 note_input=lambda path: _note_input(env, path),
+                depends_field=lambda conditions, subject: depends_field(
+                    env, conditions, subject
+                ),
             )
         except (OSError, ET.ParseError) as exc:
             logger.warning(f"symbolneeds: cannot read {xml_dir}: {exc}")

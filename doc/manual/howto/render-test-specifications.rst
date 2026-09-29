@@ -69,6 +69,8 @@ Everything the directives emit — three need types (case/procedure/result),
 three link types, and up to nine custom fields — must be declared in
 ``needs_config.toml`` (``ZDOCS_NEEDS_CONFIG``), or sphinx-needs rejects the
 need with an ``Unknown option``/``Unknown need type`` warning per occurrence.
+The ``depends_on`` field (Kconfig conditions from ``@kconfig_depends``) is the
+exception: the directives set it only when you declare it.
 Renaming the three roles away from the engine defaults, if you want project
 vocabulary rather than ``test_case``/``verifies``/etc., is a matching pair of
 ``conf.py`` dicts — see :doc:`../reference/directives-and-roles`.
