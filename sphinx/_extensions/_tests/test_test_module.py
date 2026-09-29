@@ -406,6 +406,25 @@ def test_testmodule_directive_suite_heading(app):
 
 
 @pytest.mark.sphinx("html", srcdir=str(_ROOTS / "test-testmodule"))
+def test_testmodule_directive_notes_its_xml_and_testcase_yaml_as_inputs(app):
+    # Without these, an incremental build after the test sources change (a
+    # retagged status, a renamed test) keeps the old test cases.
+    app.build()
+    inputs = set(app.env.zdocs_report_inputs["index"])
+    xml_dir = Path(app.config.testmodule_xml_dir)
+    assert str(xml_dir / "index.xml") in inputs
+    assert any(p.endswith(".xml") and "group__" in p for p in inputs)
+    assert any(p.endswith("testcase.yaml") for p in inputs)
+
+
+@pytest.mark.sphinx("html", srcdir=str(_ROOTS / "test-testmodule"))
+def test_testmodule_group_index_is_not_cached_across_builds(app):
+    # The pickled env must not carry the index into the next build.
+    app.build()
+    assert not hasattr(app.env, "_testmodule_group_index")
+
+
+@pytest.mark.sphinx("html", srcdir=str(_ROOTS / "test-testmodule"))
 def test_testmodule_directive_procedure_ids(app):
     app.build()
     html = (Path(app.outdir) / "index.html").read_text()

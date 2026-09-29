@@ -464,14 +464,24 @@ class TestModuleDirective(Directive):
         # project-specific env var name in a generic engine (decision 5).
         module_root = app.config.testmodule_root
 
-        if not hasattr(env, "_testmodule_group_index"):
+        # Every file read below lives outside the Sphinx source tree, so each
+        # is noted as an input (see _note_input): without that, an incremental
+        # build after the test sources change keeps the old test cases.
+        _note_input(env, xml_dir / "index.xml")
+
+        # Parsed once per build and cached on the app, which lives for one
+        # build only. It used to be cached on env, which is pickled across
+        # builds, so a module group added later stayed "not found" until a
+        # full rebuild.
+        group_index = getattr(app, "_testmodule_group_index", None)
+        if group_index is None:
             try:
-                env._testmodule_group_index = load_group_index(xml_dir)
+                group_index = app._testmodule_group_index = load_group_index(xml_dir)
             except RuntimeError as exc:
                 logger.warning(str(exc))
                 return [nodes.paragraph(text=str(exc))]
 
-        module_refid = env._testmodule_group_index.get(group_name)
+        module_refid = group_index.get(group_name)
         if module_refid is None:
             logger.warning(f"testmodule: Doxygen group '{group_name}' not found in index.xml")
             return [
@@ -479,6 +489,7 @@ class TestModuleDirective(Directive):
             ]
 
         module_group_xml = xml_dir / f"{module_refid}.xml"
+        _note_input(env, module_group_xml)
         if not module_group_xml.exists():
             logger.warning(
                 f"testmodule: XML file not found for group '{group_name}': {module_group_xml}"
@@ -486,10 +497,16 @@ class TestModuleDirective(Directive):
             return [nodes.paragraph(text=f"[testmodule: XML missing for '{group_name}']")]
 
         module_cdef = ET.parse(module_group_xml).getroot().find("compounddef")
+        # _classify_inner_groups reads every inner group, and the suite and
+        # procedure builders read theirs again: all of them are inputs.
+        for inner in module_cdef.findall("innergroup"):
+            _note_input(env, xml_dir / f"{inner.get('refid')}.xml")
         suite_refids, proc_refids = _classify_inner_groups(module_cdef, xml_dir)
 
         need_names = _need_names_from_config(app)
-        scenario_lines = build_scenario_table(Path(module_root) / module_path / "testcase.yaml")
+        testcase_yaml = Path(module_root) / module_path / "testcase.yaml"
+        _note_input(env, testcase_yaml)
+        scenario_lines = build_scenario_table(testcase_yaml)
         all_rst = list(scenario_lines)
         for suite_refid in suite_refids:
             all_rst += _build_suite_rst(
