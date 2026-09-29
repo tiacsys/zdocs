@@ -225,6 +225,16 @@ function(add_sphinx_target doc_name)
   if(NOT ZDOCS_TWISTER_OUT STREQUAL "")
     list(APPEND SPHINX_ENV ZDOCS_TWISTER_OUT=${ZDOCS_TWISTER_OUT})
   endif()
+  # The Zephyr that find_package(Zephyr) found. zdocs_conf loads Zephyr's doc
+  # extensions from it, including external_content, which stages the sources
+  # into ${DOCS_SRC_DIR}. find_package sets only the CMake variable, never the
+  # environment, so without this the build depended on the user's shell
+  # exporting ZEPHYR_BASE. A shell without it staged nothing, and Sphinx failed
+  # with "unable to load the master document". Set explicitly, it also
+  # overrides a stale shell value that points at a different Zephyr.
+  if(NOT ZEPHYR_BASE STREQUAL "")
+    list(APPEND SPHINX_ENV ZEPHYR_BASE=${ZEPHYR_BASE})
+  endif()
 
   if(ARGS_REGISTRY)
     set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${ARGS_REGISTRY})
