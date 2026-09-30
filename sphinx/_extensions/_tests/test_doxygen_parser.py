@@ -578,3 +578,37 @@ def test_see_to_rst_space_after_a_call_divides_items():
     assert dp.see_to_rst(_see("k_stats_query() k_stats_reset()"), API) == (
         "**See also:** ``k_stats_query()``, ``k_stats_reset()``"
     )
+
+
+# ---------------------------------------------------------------------------
+# All see sections of a member
+#
+# Doxygen 1.16 writes one see section for each `@see` line. Only the first was
+# read, so `@see k_thread_join()` followed by `@see irq_offload()` lost the
+# second reference (TSPEC-THREADS-030).
+# ---------------------------------------------------------------------------
+
+def test_see_to_rst_joins_all_sections_in_order():
+    sections = [_see(EXT_REF), _see("irq_offload()")]
+    assert dp.see_to_rst(sections, API, SPEC) == (
+        "**See also:** `k_fifo_get() <../api/group__fifo__apis.html#ga1e2c>`__, ``irq_offload()``"
+    )
+
+
+def test_see_to_rst_no_sections_gives_no_line():
+    assert dp.see_to_rst([], API, SPEC) == ""
+
+
+def test_parse_memberdef_reads_every_see_section():
+    md = ET.fromstring(
+        "<memberdef kind='function' id='group__s_1a1'><name>test_join</name>"
+        "<briefdescription><para>Join.</para></briefdescription>"
+        "<detaileddescription><para>"
+        f"<simplesect kind='see'><para>{EXT_REF}</para></simplesect>"
+        "<simplesect kind='see'><para>irq_offload()</para></simplesect>"
+        "</para></detaileddescription>"
+        "<location file='t.c' line='1'/></memberdef>"
+    )
+    info = dp.parse_memberdef(md, "group__s", SPEC, API)
+    assert "k_fifo_get()" in info["see_rst"]
+    assert info["see_rst"].endswith(", ``irq_offload()``")

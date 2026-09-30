@@ -5,7 +5,7 @@
 """Doxygen XML parsing — no Sphinx dependency."""
 import os
 import xml.etree.ElementTree as ET
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from pathlib import Path
 from typing import NamedTuple, TypedDict
 
@@ -346,21 +346,25 @@ def _see_para_items(para: ET.Element, links: RefLinks) -> list[str]:
 
 
 def see_to_rst(
-    simplesect_see: ET.Element,
+    simplesect_see: ET.Element | Iterable[ET.Element],
     api_html_dir: str,
     testspec_html_dir: str = "",
     tag_dirs: Mapping[str, str] | None = None,
 ) -> str:
-    """Render a <simplesect kind="see"> into a 'See also:' RST line.
+    """Render one <simplesect kind="see">, or all of a member, into a 'See also:' RST line.
     Each <ref> becomes a hyperlink (see `ref_to_rst`), a :c:func: role
     (unlinked member refs), or a plain code span, depending on its attributes.
     Text that is not in a <ref> becomes a literal: `@see irq_offload()` gives
     no <ref> when no Doxygen project documents the symbol, and it was lost.
-    ``tag_dirs``: `RefLinks.tags`."""
+    Doxygen 1.16 writes one see section for each `@see` line, also for lines
+    that follow each other, so a caller gives all sections of a member
+    (``findall``), not only the first. ``tag_dirs``: `RefLinks.tags`."""
     links = RefLinks(api=api_html_dir, local=testspec_html_dir, tags=tag_dirs)
+    sections = [simplesect_see] if ET.iselement(simplesect_see) else list(simplesect_see)
     refs: list[str] = []
-    for para in simplesect_see.findall("para"):
-        refs.extend(_see_para_items(para, links))
+    for section in sections:
+        for para in section.findall("para"):
+            refs.extend(_see_para_items(para, links))
     if refs:
         return "**See also:** " + ", ".join(refs)
     return ""
@@ -506,9 +510,10 @@ def parse_memberdef(
             elif "test_obsolete" in xid:
                 status = "obsolete"
         detail_lines = detail_rst_lines(dd, links)
-        see_sect = dd.find(".//simplesect[@kind='see']")
-        if see_sect is not None:
-            see_rst = see_to_rst(see_sect, api_html_dir, testspec_html_dir, tag_dirs)
+        # Every see section, not only the first: see `see_to_rst`.
+        see_sects = dd.findall(".//simplesect[@kind='see']")
+        if see_sects:
+            see_rst = see_to_rst(see_sects, api_html_dir, testspec_html_dir, tag_dirs)
 
     # Doxygen's native `\verifies` (1.16+), read beside the `@reqref`
     # xrefsects above; both are live while sources migrate. See

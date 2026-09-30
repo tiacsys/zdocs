@@ -218,3 +218,22 @@ def test_build_procedure_need_rst_links_prose_but_keeps_title_plain():
     title = rst.splitlines()[0]
     assert "<" not in title and "k_fifo_get" in title
     assert "`k_fifo_get() <../api/group__fifo__apis.html#ga1e2c>`__ until empty" in rst
+
+
+def test_build_procedure_need_rst_reads_every_see_section():
+    import xml.etree.ElementTree as ET
+    memberdef = ET.fromstring(
+        "<memberdef kind='function' id='group__queue__procedures_1b001'>"
+        "<name>drain</name>"
+        "<briefdescription><para>Drain the queue.</para></briefdescription>"
+        "<detaileddescription><para>"
+        "<simplesect kind='see'><para>k_queue_get()</para></simplesect>"
+        "<simplesect kind='see'><para>k_queue_is_empty()</para></simplesect>"
+        "</para></detaileddescription>"
+        "<location file='helpers.c' line='10' bodyfile='helpers.c' bodystart='10'/>"
+        "</memberdef>"
+    )
+    rst = rb.build_procedure_need_rst(
+        memberdef, "group__queue__procedures", "queue_procedures", "../testspec", "../api"
+    )
+    assert "**See also:** ``k_queue_get()``, ``k_queue_is_empty()``" in rst
