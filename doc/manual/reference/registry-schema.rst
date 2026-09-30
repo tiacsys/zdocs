@@ -321,7 +321,8 @@ Each entry in ``documents:``, keyed by its id:
       records the tag file on the reference); ``api_reference`` takes only
       the references no registry document's tag file accounts for. A
       ``@see`` target that no Doxygen project documents has no reference.
-      It shows as a literal in the "See also" line, without a link.
+      It shows as a literal in the "See also" line, without a link. The
+      line has the targets of all ``@see`` lines of the test, in order.
 
    ``spec``
       Id of the sphinx document whose exported needs a ``testreport`` document

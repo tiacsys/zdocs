@@ -220,9 +220,10 @@ def build_procedure_need_rst(
         # Was a second, hand-rolled copy of the same paragraph walk, carrying the
         # same list-dropping defect. One helper now, so a fix lands in both.
         detail_lines = detail_rst_lines(dd, links)
-        see_sect = dd.find(".//simplesect[@kind='see']")
-        if see_sect is not None:
-            see_rst_str = see_to_rst(see_sect, api_html_dir, testspec_html_dir, tag_dirs)
+        # Every see section, not only the first: see `see_to_rst`.
+        see_sects = dd.findall(".//simplesect[@kind='see']")
+        if see_sects:
+            see_rst_str = see_to_rst(see_sects, api_html_dir, testspec_html_dir, tag_dirs)
 
     lines = []
     lines.append(f".. {_need_name(need_names, 'procedure')}:: {title}")
