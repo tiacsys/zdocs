@@ -2,13 +2,19 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""needs_config_state — an incremental build after the needs TOML gains a link type.
+"""needs_config_state — incremental builds after the needs TOML or an import changes.
 
 sphinx-needs registers its types, links and fields with rebuild "html", so a
 change to the TOML they come from did not re-read any document. The pickled
 needs had no entry for a new link type, and the first need using it crashed the
 build: ``KeyError: "Link type 'fulfills' does not exist in backlinks."``.
+
+A change to an imported needs.json (``needs_external_needs``) did not write the
+importing document's pages again either, so a new incoming link from a peer's
+need did not show on the page of the linked need.
 """
+
+import json
 
 from pathlib import Path
 
@@ -207,3 +213,168 @@ def test_control_without_the_extension_the_build_crashes(make_app, tmp_path):
     app = make_app("html", srcdir=src)
     with pytest.raises(Exception, match="does not exist in backlinks"):
         app.build()
+
+
+# ---------------------------------------------------------------------------
+# Imported needs
+# ---------------------------------------------------------------------------
+
+_PEER_INDEX = """\
+Peer
+====
+
+.. spec:: A specification
+   :id: SPEC_001
+   :verifies: REQ_001
+"""
+
+_PEER_NEW_NEED = """
+.. spec:: A later specification
+   :id: SPEC_002
+   :verifies: REQ_001
+"""
+
+_IMPORTER_INDEX = """\
+Importer
+========
+
+.. req:: A requirement
+   :id: REQ_001
+"""
+
+
+def _needs_json(path, needs, **extra):
+    data = {"current_version": "1.0", "versions": {"1.0": {"needs": needs, **extra}}}
+    path.write_text(json.dumps(data))
+
+
+def test_imported_digest_is_empty_without_a_json_path_source(tmp_path):
+    assert ncs.imported_needs_digest(tmp_path, None) == ""
+    assert ncs.imported_needs_digest(tmp_path, []) == ""
+    assert ncs.imported_needs_digest(tmp_path, [{"json_url": "http://peer/needs.json"}]) == ""
+
+
+def test_imported_digest_follows_the_imported_needs(tmp_path):
+    peer = tmp_path / "needs.json"
+    sources = [{"json_path": str(peer), "base_url": "http://peer"}]
+    missing = ncs.imported_needs_digest(tmp_path, sources)
+    _needs_json(peer, {"SPEC_001": {"id": "SPEC_001", "verifies": ["REQ_001"]}})
+    first = ncs.imported_needs_digest(tmp_path, sources)
+    assert first not in ("", missing)
+
+    # Not imported by sphinx-needs, so not part of the digest.
+    _needs_json(
+        peer,
+        {"SPEC_001": {"id": "SPEC_001", "verifies": ["REQ_001"], "verifies_back": ["X"]}},
+        creator={"program": "other"},
+    )
+    assert ncs.imported_needs_digest(tmp_path, sources) == first
+
+    _needs_json(
+        peer,
+        {
+            "SPEC_001": {"id": "SPEC_001", "verifies": ["REQ_001"]},
+            "SPEC_002": {"id": "SPEC_002", "verifies": ["REQ_001"]},
+        },
+    )
+    assert ncs.imported_needs_digest(tmp_path, sources) != first
+
+
+def test_imported_digest_reads_the_configured_version(tmp_path):
+    peer = tmp_path / "needs.json"
+    data = {
+        "current_version": "2.0",
+        "versions": {"1.0": {"needs": {"A": {"id": "A"}}}, "2.0": {"needs": {}}},
+    }
+    peer.write_text(json.dumps(data))
+    pinned = ncs.imported_needs_digest(tmp_path, [{"json_path": str(peer), "version": "1.0"}])
+    current = ncs.imported_needs_digest(tmp_path, [{"json_path": str(peer)}])
+    assert pinned != current
+
+
+def test_imported_digest_resolves_a_relative_path_against_the_conf_dir(tmp_path):
+    (tmp_path / "cfg").mkdir()
+    _needs_json(tmp_path / "needs.json", {"A": {"id": "A"}})
+    rel = ncs.imported_needs_digest(tmp_path / "cfg", [{"json_path": "../needs.json"}])
+    _needs_json(tmp_path / "needs.json", {})
+    assert ncs.imported_needs_digest(tmp_path / "cfg", [{"json_path": "../needs.json"}]) != rel
+
+
+def _peer_and_importer(tmp_path, extensions):
+    toml = tmp_path / "needs.toml"
+    toml.write_text(_TOML)
+    peer = tmp_path / "peer"
+    importer = tmp_path / "importer"
+    peer_json = peer / "_build" / "html" / "needs.json"
+    for src, index, extra in (
+        (peer, _PEER_INDEX, "needs_build_json = True\n"),
+        (importer, _IMPORTER_INDEX, f"needs_external_needs = [{{'json_path': {str(peer_json)!r}, "
+                                    "'base_url': 'http://peer', 'version': '1.0'}]\n"),
+    ):
+        src.mkdir()
+        (src / "conf.py").write_text(
+            "import sys\n"
+            f"sys.path.insert(0, {_EXTENSIONS!r})\n"
+            f"extensions = {extensions!r}\n"
+            f"needs_from_toml = {str(toml)!r}\n"
+            "version = '1.0'\n"
+            "suppress_warnings = ['config.cache', 'needs.link_outgoing']\n" + extra
+        )
+        (src / "index.rst").write_text(index)
+    return peer, importer
+
+
+def _build(make_app, src):
+    app = make_app("html", srcdir=src)
+    app.build()
+    assert app.statuscode == 0
+    return app
+
+
+def _peer_gains_a_need(make_app, tmp_path, extensions):
+    """Build both, add a peer need that links to the importer's need, build both again."""
+    peer, importer = _peer_and_importer(tmp_path, extensions)
+    _build(make_app, peer)
+    _build(make_app, importer)
+    (peer / "index.rst").write_text(_PEER_INDEX + _PEER_NEW_NEED)
+    _build(make_app, peer)
+    app = _build(make_app, importer)
+    return app, (Path(app.outdir) / "index.html").read_text()
+
+
+def test_a_new_incoming_link_from_an_import_shows(make_app, tmp_path):
+    app, page = _peer_gains_a_need(make_app, tmp_path, ["sphinx_needs", "needs_config_state"])
+    assert "starting from a fresh environment" in app._status.getvalue()
+    assert "SPEC_001" in page and "SPEC_002" in page  # SPEC_002 was missing
+
+
+def test_an_unchanged_import_keeps_the_cache(make_app, tmp_path):
+    peer, importer = _peer_and_importer(tmp_path, ["sphinx_needs", "needs_config_state"])
+    _build(make_app, peer)
+    _build(make_app, importer)
+    _build(make_app, peer)  # writes needs.json again, with the same needs
+    status = _build(make_app, importer)._status.getvalue()
+    assert "fresh environment" not in status
+    assert "0 added, 0 changed, 0 removed" in status
+
+
+def test_a_need_the_peer_removes_goes_from_the_page(make_app, tmp_path):
+    peer, importer = _peer_and_importer(tmp_path, ["sphinx_needs", "needs_config_state"])
+    (peer / "index.rst").write_text(_PEER_INDEX + _PEER_NEW_NEED)
+    _build(make_app, peer)
+    _build(make_app, importer)
+    (peer / "index.rst").write_text(_PEER_INDEX)
+    _build(make_app, peer)
+    app = _build(make_app, importer)
+    assert "SPEC_002" not in (Path(app.outdir) / "index.html").read_text()
+
+
+def test_control_without_the_extension_the_new_link_is_missing(make_app, tmp_path):
+    """The defect, pinned against sphinx-needs as installed.
+
+    If this starts to fail after an upgrade, Sphinx or sphinx-needs now writes
+    the pages again when an import changes, and this part of the extension can
+    be obsolete.
+    """
+    _, page = _peer_gains_a_need(make_app, tmp_path, ["sphinx_needs"])
+    assert "SPEC_001" in page and "SPEC_002" not in page

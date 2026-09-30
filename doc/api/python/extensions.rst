@@ -68,7 +68,7 @@ Re-reads a document when an input from outside the source tree changes.
 ``needs_config_state``
 ------------------------
 
-Re-reads a document when its sphinx-needs TOML file changes.
+Re-reads a document when its sphinx-needs TOML file or the needs it imports change.
 
 .. automodule:: needs_config_state
    :members:

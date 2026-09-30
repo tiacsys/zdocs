@@ -238,6 +238,11 @@ Each entry in ``documents:``, keyed by its id:
    rejected at configure time as a ``spec:`` target, because ``testreport``
    correlates against ``needs.json``, and the synthesized stub is not that.
 
+   When the needs that a peer imports from this document change, the peer
+   reads all its sources again on the next incremental build (the engine's
+   ``needs_config_state`` extension). Otherwise the pages of the peer do not
+   show a new incoming link from this document.
+
 ``doxygen_tag``
    Opt-in; publishes this document's needs as Doxygen requirements, so a
    ``\verifies`` or ``\satisfies`` in any ``kind: doxygen`` peer resolves

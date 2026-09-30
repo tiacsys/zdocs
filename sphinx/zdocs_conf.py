@@ -128,6 +128,8 @@ def configure(
         # Re-reads the document when the needs TOML's content changes:
         # sphinx-needs rebuilds only the HTML when its types, links or fields
         # change, and an incremental build then crashes on a new link type.
+        # Also when the needs it imports from a peer's needs.json change:
+        # else a page does not show a new incoming link from the peer.
         "needs_config_state",
         # The `doc_control` directive: the controlled-document header (owner,
         # classification, approval dates, version). Registers `signature_section`
