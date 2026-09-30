@@ -266,6 +266,85 @@ def section_to_rst(simplesect: ET.Element, links: RefLinks | None = None) -> lis
     return lines
 
 
+def _see_ref(ref: ET.Element, links: RefLinks) -> str:
+    """One <ref> of a see section as RST, or ``""`` if it has no name."""
+    name = (ref.text or "").strip()
+    if not name:
+        return ""
+    refid = ref.get("refid", "")
+    if refid and "_1" in refid:
+        if link := ref_to_rst(ref, links):
+            return link
+        if ref.get("kindref", "") == "member":
+            return f":c:func:`{name.rstrip('()').strip()}`"
+        return f"``{name}``"
+    return f":c:func:`{name.rstrip('()').strip()}`"
+
+
+def _see_text_items(text: str) -> list[str]:
+    """The plain text of a see section as literals, one for each item.
+
+    A comma divides items, but not a comma inside parentheses (``f(a, b)``).
+    Space after a ")" also divides items (``a() b()``). A piece with no
+    letter or digit is a separator, for example the ", " between two
+    references or a final ".", and gives no item.
+    """
+    pieces: list[str] = []
+    depth = 0
+    start = 0
+    for i, ch in enumerate(text):
+        if ch == "(":
+            depth += 1
+        elif ch == ")":
+            depth = max(depth - 1, 0)
+        elif ch == "," and depth == 0:
+            pieces.append(text[start:i])
+            start = i + 1
+        elif ch.isspace() and depth == 0 and text[:i].rstrip().endswith(")"):
+            pieces.append(text[start:i])
+            start = i + 1
+    pieces.append(text[start:])
+    items = []
+    for piece in pieces:
+        piece = " ".join(piece.replace("`", "").split()).rstrip(".;").strip()
+        if any(ch.isalnum() for ch in piece):
+            items.append(f"``{piece}``")
+    return items
+
+
+def _see_para_items(para: ET.Element, links: RefLinks) -> list[str]:
+    """The items of one <para> of a see section, in the order of the source.
+
+    A <ref> becomes a link (see `_see_ref`), also inside a <computeroutput>.
+    The text between the references becomes literals (see `_see_text_items`).
+    """
+    items: list[str] = []
+    text: list[str] = []
+
+    def flush() -> None:
+        items.extend(_see_text_items("".join(text)))
+        text.clear()
+
+    def walk(elem: ET.Element) -> None:
+        for child in elem:
+            if child.tag == "ref":
+                flush()
+                if item := _see_ref(child, links):
+                    items.append(item)
+            else:
+                if child.text:
+                    text.append(child.text)
+                walk(child)
+            if child.tail:
+                text.append(child.tail)
+
+    if para.text:
+        text.append(para.text)
+    walk(para)
+    flush()
+    return items
+
+
 def see_to_rst(
     simplesect_see: ET.Element,
     api_html_dir: str,
@@ -275,25 +354,13 @@ def see_to_rst(
     """Render a <simplesect kind="see"> into a 'See also:' RST line.
     Each <ref> becomes a hyperlink (see `ref_to_rst`), a :c:func: role
     (unlinked member refs), or a plain code span, depending on its attributes.
+    Text that is not in a <ref> becomes a literal: `@see irq_offload()` gives
+    no <ref> when no Doxygen project documents the symbol, and it was lost.
     ``tag_dirs``: `RefLinks.tags`."""
     links = RefLinks(api=api_html_dir, local=testspec_html_dir, tags=tag_dirs)
     refs: list[str] = []
-    for ref in simplesect_see.findall("para/ref"):
-        name = (ref.text or "").strip()
-        if not name:
-            continue
-        refid = ref.get("refid", "")
-        kindref = ref.get("kindref", "")
-        if refid and "_1" in refid:
-            if link := ref_to_rst(ref, links):
-                refs.append(link)
-            elif kindref == "member":
-                func_name = name.rstrip("()").strip()
-                refs.append(f":c:func:`{func_name}`")
-            else:
-                refs.append(f"``{name}``")
-        else:
-            refs.append(f":c:func:`{name.rstrip('()').strip()}`")
+    for para in simplesect_see.findall("para"):
+        refs.extend(_see_para_items(para, links))
     if refs:
         return "**See also:** " + ", ".join(refs)
     return ""
