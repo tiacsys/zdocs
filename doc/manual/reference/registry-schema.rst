@@ -319,7 +319,9 @@ Each entry in ``documents:``, keyed by its id:
       ``@see`` cross-references resolve. A symbol Doxygen resolved through
       another document's tag file links into that document instead (Doxygen
       records the tag file on the reference); ``api_reference`` takes only
-      the references no registry document's tag file accounts for.
+      the references no registry document's tag file accounts for. A
+      ``@see`` target that no Doxygen project documents has no reference.
+      It shows as a literal in the "See also" line, without a link.
 
    ``spec``
       Id of the sphinx document whose exported needs a ``testreport`` document

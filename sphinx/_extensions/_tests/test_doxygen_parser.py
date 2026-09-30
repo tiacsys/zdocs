@@ -524,3 +524,57 @@ def test_parse_memberdef_links_symbols_in_brief_details_and_body():
 def test_see_to_rst_links_local_symbol_when_testspec_dir_given():
     see = ET.fromstring(f"<simplesect kind='see'><para>{LOCAL_REF}</para></simplesect>")
     assert "../testspec/group__procs.html#ga3f93" in dp.see_to_rst(see, API, SPEC)
+
+
+# ---------------------------------------------------------------------------
+# see_to_rst: text that is not in a <ref>
+#
+# `@see irq_offload()` gives no <ref> when no Doxygen project documents the
+# symbol. see_to_rst read only the <ref> elements, so the see section gave no
+# line, and the reference was lost.
+# ---------------------------------------------------------------------------
+
+def _see(body):
+    return ET.fromstring(f"<simplesect kind='see'><para>{body}</para></simplesect>")
+
+
+def test_see_to_rst_renders_text_without_ref_as_literal():
+    assert dp.see_to_rst(_see("irq_offload()"), API, SPEC) == "**See also:** ``irq_offload()``"
+
+
+def test_see_to_rst_keeps_refs_and_the_text_between_them_in_order():
+    line = dp.see_to_rst(_see(f"atomic_set(), {EXT_REF}, printk() "), API, SPEC)
+    assert line == (
+        "**See also:** ``atomic_set()``, "
+        "`k_fifo_get() <../api/group__fifo__apis.html#ga1e2c>`__, ``printk()``"
+    )
+
+
+def test_see_to_rst_separators_between_refs_give_no_item():
+    """A line with only linked refs is the same as before."""
+    line = dp.see_to_rst(_see(f"{EXT_REF}, {LOCAL_REF}."), API, SPEC)
+    assert line == (
+        "**See also:** `k_fifo_get() <../api/group__fifo__apis.html#ga1e2c>`__, "
+        "`get_scratch_packet() <../testspec/group__procs.html#ga3f93>`__"
+    )
+
+
+def test_see_to_rst_a_comma_in_parentheses_does_not_divide_items():
+    assert dp.see_to_rst(_see("k_foo(a, b), k_bar()"), API) == (
+        "**See also:** ``k_foo(a, b)``, ``k_bar()``"
+    )
+
+
+def test_see_to_rst_links_a_ref_inside_computeroutput():
+    line = dp.see_to_rst(_see(f"<computeroutput>{EXT_REF}</computeroutput>"), API, SPEC)
+    assert line == "**See also:** `k_fifo_get() <../api/group__fifo__apis.html#ga1e2c>`__"
+
+
+def test_see_to_rst_empty_section_gives_no_line():
+    assert dp.see_to_rst(_see(" , "), API, SPEC) == ""
+
+
+def test_see_to_rst_space_after_a_call_divides_items():
+    assert dp.see_to_rst(_see("k_stats_query() k_stats_reset()"), API) == (
+        "**See also:** ``k_stats_query()``, ``k_stats_reset()``"
+    )
