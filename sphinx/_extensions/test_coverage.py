@@ -14,7 +14,15 @@ import re
 from collections import Counter
 from pathlib import Path
 
-from adequacy import VERDICTS, Source, assess, collect_links, line_ranges, load_coverage_run
+from adequacy import (
+    IMPL_PATTERNS,
+    VERDICTS,
+    Source,
+    assess,
+    collect_links,
+    line_ranges,
+    load_coverage_run,
+)
 from docutils import nodes
 from docutils.parsers.rst import Directive, directives
 from docutils.statemachine import ViewList
@@ -153,8 +161,12 @@ def build_adequacy_rst(req, res, run, need_names=None, fields=(), prefix="ADQ", 
 
 def build_coverage_rst(
     results, run, source, impl_loc, need_names=None, fields=(), prefix="ADQ", layout="",
+    impl_files=IMPL_PATTERNS,
 ):
-    """RST lines for the whole directive: run summary, distribution, needs by verdict."""
+    """RST lines for the whole directive: run summary, distribution, needs by verdict.
+
+    ``impl_files``: the body files that the run searched, for the summary.
+    """
     counts = Counter(r["verdict"] for r in results.values())
     symbols = sorted({s for r in results.values() for s in r["symbols"]})
     lines = [
@@ -166,6 +178,8 @@ def build_coverage_rst(
         f"     - ``{run.name}``",
         "   * - Sources read at",
         f"     - ``{source.describe()}``",
+        "   * - Files searched for bodies",
+        "     - " + ", ".join(f"``{p}``" for p in impl_files),
         "   * - Tests in the coverage matrix",
         f"     - {len(run.by_test)}",
         "   * - Spec test cases the run ran",
@@ -212,7 +226,8 @@ class TestCoverageDirective(Directive):
     ``coverage_output_dir`` (``ZDOCS_COVERAGE_OUT``). ``:run:`` names the run in
     the need ids. Without it, the name is the first tag on the run commit, or
     else the name of the run directory. ``:layout:`` sets the sphinx-needs
-    layout of each need.
+    layout of each need. ``testcoverage_impl_files`` sets the files that hold
+    the bodies of the satisfying symbols.
     """
 
     required_arguments = 0
@@ -254,10 +269,12 @@ class TestCoverageDirective(Directive):
             _note_input(env, p)
 
         root = getattr(config, "testmodule_root", "") or env.srcdir
+        impl_files = tuple(getattr(config, "testcoverage_impl_files", None) or IMPL_PATTERNS)
         try:
             spec_lookup, verified_by, satisfied_by, ids = collect_links(json_paths, need_names)
             run, _ = load_coverage_run(
-                run_dir, spec_lookup, root, name=self.options.get("run", "").strip() or None
+                run_dir, spec_lookup, root, name=self.options.get("run", "").strip() or None,
+                impl_files=impl_files,
             )
         except Exception as exc:
             logger.warning(f"testcoverage: cannot read the coverage run {run_dir}: {exc}")
@@ -269,7 +286,7 @@ class TestCoverageDirective(Directive):
                 f"changed since the run"
             )
         source = Source(root, run.sha)
-        results, impl_loc = assess(run, verified_by, satisfied_by, source, ids)
+        results, impl_loc = assess(run, verified_by, satisfied_by, source, ids, impl_files)
         if not results:
             return self._paragraph("[testcoverage: the run ran no verifying test case]")
 
@@ -281,6 +298,7 @@ class TestCoverageDirective(Directive):
             results, run, source, impl_loc, need_names, fields,
             getattr(config, "testcoverage_id_prefix", "ADQ"),
             self.options.get("layout", "").strip(),
+            impl_files,
         )
         dump_dir = getattr(config, "dump_generated_rst", "")
         if dump_dir:
@@ -303,6 +321,8 @@ def setup(app):
     # coverage/test_matrix.json and zephyr.sha.
     app.add_config_value("coverage_output_dir", "", "env")
     app.add_config_value("testcoverage_id_prefix", "ADQ", "env")
+    # Glob patterns of the files that hold the bodies, relative to testmodule_root.
+    app.add_config_value("testcoverage_impl_files", list(IMPL_PATTERNS), "env")
     app.add_config_value("testcoverage_need_types", {"adequacy": "adequacy"}, "env")
     app.add_config_value("testcoverage_need_links", {"assesses": "assesses"}, "env")
     # Field roles -> names. A field is set only where the consumer declares it.

@@ -90,6 +90,21 @@ int k_obj_init(struct k_obj *o);
 #define k_macro(x) k_plain()
 """
 
+# A kernel-internal header: outside the default file set. No requirement uses
+# k_priv, so the verdicts above do not change. A non-static definition in a
+# header is not a body.
+PRIV_H = """\
+static inline bool k_priv(int x)
+{
+	return x > 0;
+}
+
+int k_priv_extern(int x)
+{
+	return x;
+}
+"""
+
 
 def _lines(text, first, last):
     """The 1-based line numbers of ``first`` .. ``last`` (by content) in ``text``."""
@@ -222,6 +237,7 @@ def tree(tmp_path):
         "kernel/plain.c": PLAIN_C,
         "include/zephyr/sys/k_inline.h": INLINE_H,
         "include/zephyr/kernel.h": KERNEL_H,
+        "kernel/include/k_priv.h": PRIV_H,
         "lib/unrelated.c": "void k_plain(void)\n{\n}\n",  # not a searched path
     }
     for rel, text in files.items():
@@ -385,6 +401,47 @@ def test_glob_patterns_take_zero_or_more_directories():
     assert not A._glob_regex("kernel/*.c").match("kernel/sub/x.c")
 
 
+def test_the_default_file_set_is_the_set_of_the_original(tree):
+    root, sha, _, _ = tree
+    loc = A.resolve_impl_symbols(A.Source(root, sha), ["k_plain", "k_priv"])
+    assert "k_priv" not in loc
+    assert [b["file"] for b in loc["k_plain"]] == ["kernel/plain.c"]
+
+
+def test_impl_files_set_the_files_that_hold_the_bodies(tree):
+    root, sha, _, _ = tree
+    files = (*A.IMPL_PATTERNS, "kernel/include/*.h", "lib/*.c")
+    loc = A.resolve_impl_symbols(A.Source(root, sha), ["k_plain", "k_priv", "k_priv_extern"],
+                                 files)
+    # A .h file outside include/ is a header too: static inline only.
+    assert [(b["variant"], b["file"], b["a"], b["b"]) for b in loc["k_priv"]] == [
+        ("inline", "kernel/include/k_priv.h", 1, 4),
+    ]
+    assert "k_priv_extern" not in loc
+    assert [b["file"] for b in loc["k_plain"]] == ["kernel/plain.c", "lib/unrelated.c"]
+    # Only the given files: without kernel/*.c, k_plain is in lib/ only.
+    loc = A.resolve_impl_symbols(A.Source(root, sha), ["k_plain"], ["lib/*.c"])
+    assert [b["file"] for b in loc["k_plain"]] == ["lib/unrelated.c"]
+
+
+def test_the_matrix_keeps_the_files_of_every_pattern():
+    assert A.keep_prefixes() == A._KEEP
+    assert A.keep_prefixes(["arch/**/*.c", "soc/x.c", "kernel/include/*.h"]) == (
+        *A._KEEP, "arch/", "soc/x.c",
+    )
+    # Nothing outside the tree, nothing for a pattern that starts with a wildcard.
+    assert A.keep_prefixes(["../modules/*.c", "/abs/*.c", "*.c", "ar*/x.c"]) == A._KEEP
+
+
+def test_the_matrix_keeps_the_lines_of_a_wider_file_set(tree, tmp_path):
+    _, _, run_dir, _ = tree
+    m = tmp_path / "m.json"
+    _write_matrix(m, {"k": {"arch/a.c": [3], "kernel/obj.c": [1], "../x/y.c": [1]}})
+    assert A.load_matrix(m)[0]["k"] == {"kernel/obj.c": {1}}
+    by_test, _ = A.load_matrix(m, A.keep_prefixes(["arch/**/*.c"]))
+    assert by_test["k"] == {"arch/a.c": {3}, "kernel/obj.c": {1}}
+
+
 def test_matrix_key():
     assert A.matrix_key("kernel.semaphore", "test_sem_init_validity") == (
         "kernel_semaphore_test_sem_init_validity"
@@ -470,6 +527,31 @@ def test_directive_emits_one_adequacy_need_per_requirement(tree, make_app, tmp_p
     assert "WARNING" not in log, log
     html = (Path(app.outdir) / "index.html").read_text()
     assert "Verdict broken" in html and 'id="ADQ-cov-run/R-VRFY"' in html
+
+
+def test_directive_reads_the_consumers_file_set(tree, make_app, tmp_path):
+    root, _, run_dir, needs_json = tree
+    src = tmp_path / "doc"
+    src.mkdir()
+    (src / "conf.py").write_text(_CONF.format(
+        ext=str(Path(A.__file__).parent), needs=str(needs_json), run=str(run_dir),
+        root=str(root),
+    ) + 'testcoverage_impl_files = ["include/zephyr/sys/**/*.h"]\n')
+    (src / "index.rst").write_text("Adequacy\n########\n\n.. testcoverage::\n")
+    app = make_app("html", srcdir=src)
+    app.build()
+    data = json.loads((Path(app.outdir) / "needs.json").read_text())
+    needs = next(iter(data["versions"].values()))["needs"]
+    verdicts = {n["id"].split("/", 1)[1]: n["verdict"] for n in needs.values()
+                if n["type"] == "adequacy"}
+    # Only k_inline has a body in these files. The own test of R-PARTIAL runs
+    # k_plain only, so k_inline alone judges it: another test runs it.
+    assert verdicts["R-INLINE"] == "true"
+    assert verdicts["R-DEF"] == "unresolved"
+    assert verdicts["R-PARTIAL"] == "broken"
+    html = (Path(app.outdir) / "index.html").read_text()
+    assert "Files searched for bodies" in html
+    assert "include/zephyr/sys/**/*.h" in html and "kernel/*.c" not in html
 
 
 def test_directive_without_a_run_says_so(make_app, tmp_path):

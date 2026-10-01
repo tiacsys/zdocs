@@ -326,6 +326,26 @@ the tree, the directive reads the working tree and warns. A body is
 reaches), a plain definition, or a header ``static inline``. A macro has no
 body.
 
+``testcoverage_impl_files`` sets the files that hold the bodies. Each entry is
+a glob pattern relative to ``testmodule_root``: ``**/`` is zero or more
+directories, and ``*`` stays in one directory. In a ``.h`` file, only a
+``static inline`` definition is a body. The default is the set of the
+original resolver:
+
+.. code-block:: python
+
+   testcoverage_impl_files = [  # default
+       "kernel/*.c",
+       "kernel/**/*.c",
+       "include/zephyr/kernel.h",
+       "include/zephyr/kernel/**/*.h",
+       "include/zephyr/sys/**/*.h",
+   ]
+
+An empty list gives the default. A symbol with its body outside these files
+gets the verdict ``unresolved``. The summary of the run lists the files that
+the directive searched.
+
 The verdicts:
 
 ``true``

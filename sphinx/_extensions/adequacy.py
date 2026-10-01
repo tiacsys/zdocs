@@ -35,6 +35,10 @@ Two changes from the original correct errors:
 * The run commit comes from ``zephyr.sha`` beside the twister output first.
   Then it comes from ``environment.zephyr_version``.
 
+One change from the original is a setting: the files that hold the bodies.
+`IMPL_PATTERNS` is the set of the original and the default. A consumer gives
+its own set to `assess` (``testcoverage_impl_files`` in Sphinx).
+
 The verdicts are the verdicts of the original:
 
 ``true``
@@ -65,6 +69,8 @@ from twister_reader import SpecLookup, split_case_name
 __all__ = [
     "VERDICTS",
     "matrix_key",
+    "IMPL_PATTERNS",
+    "keep_prefixes",
     "load_matrix",
     "run_commit",
     "run_name",
@@ -86,7 +92,7 @@ VERDICTS = ("broken", "partial", "unattributed", "unresolved", "no-cov", "no-imp
 _FAIL = {"failed", "error"}
 _SKIP = {"skipped", "blocked", "not run", "filtered"}
 
-#: Where the original looks for bodies.
+#: Where the original looks for bodies. The default of ``impl_files``.
 IMPL_PATTERNS = (
     "kernel/*.c",
     "kernel/**/*.c",
@@ -95,7 +101,8 @@ IMPL_PATTERNS = (
     "include/zephyr/sys/**/*.h",
 )
 
-#: Files the matrix is read for (the original's ``keep``).
+#: Files the matrix is read for (the original's ``keep``). `keep_prefixes`
+#: adds the fixed start of each pattern of ``impl_files``.
 _KEEP = ("kernel/", "include/", "lib/", "tests/")
 
 #: A body ends at the first column-0 ``}`` within this many lines.
@@ -123,22 +130,42 @@ def matrix_key(scenario, function, suite=None):
 # --- test_matrix.json ---------------------------------------------------------
 
 
-def load_matrix(matrix_path):
-    """``(by_test, by_line)`` of a ``test_matrix.json``, for the files under `_KEEP`.
+def keep_prefixes(impl_files=IMPL_PATTERNS):
+    """`_KEEP` and the fixed start of each pattern, up to its last ``/`` before a wildcard.
+
+    A body file must be in the matrix that `load_matrix` keeps, so that its
+    lines can count as covered. ``arch/**/*.c`` adds ``arch/``. A pattern with
+    a wildcard in its first part adds nothing, so that the matrix does not keep
+    files outside the tree (``../modules/...``).
+    """
+    out = list(_KEEP)
+    for pat in impl_files:
+        fixed = re.split(r"[*?]", pat, maxsplit=1)[0]
+        if fixed != pat:
+            fixed = fixed[: fixed.rfind("/") + 1]
+        if fixed and not fixed.startswith(("/", "../")) and not fixed.startswith(tuple(out)):
+            out.append(fixed)
+    return tuple(out)
+
+
+def load_matrix(matrix_path, keep=_KEEP):
+    """``(by_test, by_line)`` of a ``test_matrix.json``, for the files under ``keep``.
 
     * ``by_test[key] = {file: set of covered lines}``
     * ``by_line[file] = {line (int): [keys]}``
+
+    ``keep``: path prefixes (`_KEEP`, or `keep_prefixes` of the body files).
     """
     data = json.loads(Path(matrix_path).read_text())
     by_test = {}
     for key, files in data.get("by_test", {}).items():
         by_test[key] = {
-            f: {int(x) for x in lines} for f, lines in files.items() if f.startswith(_KEEP)
+            f: {int(x) for x in lines} for f, lines in files.items() if f.startswith(keep)
         }
     by_line = {
         f: {int(ln): list(keys) for ln, keys in lines.items()}
         for f, lines in data.get("by_line", {}).items()
-        if f.startswith(_KEEP)
+        if f.startswith(keep)
     }
     return by_test, by_line
 
@@ -266,7 +293,7 @@ class Source:
 _CALLEE = re.compile(r"[^(]*?\b(\w+)\s*\(")
 
 
-def resolve_impl_symbols(source, symbols):
+def resolve_impl_symbols(source, symbols, impl_files=IMPL_PATTERNS):
     """The function bodies of the satisfying symbols (best effort).
 
     A system call has more than one body. ``z_impl_<sym>`` is the
@@ -280,11 +307,14 @@ def resolve_impl_symbols(source, symbols):
     permitted), and its line does not end in ``;``. Its body ends at the first
     ``}`` in column 0, in 500 lines or less. In a header, only a ``static``
     line counts: other lines are prototypes or macros. So a macro has no body.
+    A header is a ``.h`` file anywhere in the tree (``kernel/include/`` too).
+
+    ``impl_files``: the glob patterns of the files to search (`IMPL_PATTERNS`).
 
     Returns {sym: [{"file", "a", "b", "variant"}, ...]}.
     """
     sources = {}
-    for rel in source.list(IMPL_PATTERNS):
+    for rel in source.list(impl_files):
         text = source.read(rel)
         if text is not None:
             sources[rel] = text.split("\n")
@@ -294,7 +324,7 @@ def resolve_impl_symbols(source, symbols):
     # tree. The full pattern decides.
     candidates = defaultdict(list)
     for f, lines in sources.items():
-        in_header = f.startswith("include/")
+        in_header = f.endswith(".h")
         for i, ln in enumerate(lines):
             if ln.rstrip().endswith(";"):
                 continue
@@ -324,7 +354,7 @@ def resolve_impl_symbols(source, symbols):
                 if end:
                     bodies.append({
                         "file": f, "a": i + 1, "b": end,
-                        "variant": "inline" if f.startswith("include/") else variant,
+                        "variant": "inline" if f.endswith(".h") else variant,
                     })
         if bodies:
             # stable order: impl first, then vrfy, inline, plain definitions
@@ -400,8 +430,11 @@ def join_cases(twister, spec_lookup, by_test):
     return cases, sorted(unmatched)
 
 
-def load_coverage_run(run_dir, spec_lookup, root, name=None):
+def load_coverage_run(run_dir, spec_lookup, root, name=None, impl_files=IMPL_PATTERNS):
     """Read a coverage run directory: twister.json, coverage/test_matrix.json, zephyr.sha.
+
+    ``impl_files``: the body files of `resolve_impl_symbols`. The matrix keeps
+    their lines (`keep_prefixes`).
 
     Returns ``(run, inputs)``: the `CoverageRun` and the files that it reads.
     """
@@ -410,7 +443,7 @@ def load_coverage_run(run_dir, spec_lookup, root, name=None):
     matrix_json = run_dir / "coverage" / "test_matrix.json"
     inputs = [twister_json, matrix_json, run_dir / "zephyr.sha"]
     twister = json.loads(twister_json.read_text())
-    by_test, by_line = load_matrix(matrix_json)
+    by_test, by_line = load_matrix(matrix_json, keep_prefixes(impl_files))
     env = twister.get("environment", {})
     sha = run_commit(run_dir, env, root)
     cases, unmatched = join_cases(twister, spec_lookup, by_test)
@@ -566,20 +599,21 @@ def adequacy(symbols, case_ids, run, impl_loc):
     return {"verdict": verdict, "impls": detail}
 
 
-def assess(run, verified_by, satisfied_by, source, ids=None):
+def assess(run, verified_by, satisfied_by, source, ids=None, impl_files=IMPL_PATTERNS):
     """The assessment of each requirement in the scope of the run: ``({req: result}, impl_loc)``.
 
     A requirement is in the scope if twister ran at least one of its verifying
     cases in this run. If ``ids`` is given, the requirement must also be a need.
     Each result has ``verdict`` and ``impls`` (`adequacy`), ``evidence``,
-    ``symbols`` and ``cases``.
+    ``symbols`` and ``cases``. ``impl_files``: the body files
+    (`resolve_impl_symbols`).
     """
     reqs = sorted(
         r for r, cs in verified_by.items()
         if any(c in run.cases for c in cs) and (ids is None or r in ids)
     )
     symbols = sorted({s for r in reqs for s in satisfied_by.get(r, [])})
-    impl_loc = resolve_impl_symbols(source, symbols)
+    impl_loc = resolve_impl_symbols(source, symbols, impl_files)
     out = {}
     for r in reqs:
         cases = sorted(set(verified_by[r]))
