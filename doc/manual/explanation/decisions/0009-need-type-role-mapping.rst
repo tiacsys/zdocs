@@ -36,6 +36,11 @@ methodology vocabulary; the fields hanging off them are the engine's own data
 model. The distinction is visible in a generated needs table, where literal
 field names sit beside a mapped link name.
 
+Two fields were later made roles too: a test result's ``depends_met`` and
+``skip_class`` (``testreport_need_fields``). They are verdicts a project's
+review filters and reports by, not a record of what twister wrote, so a
+consumer names them like the types and links.
+
 Consequences
 ------------
 

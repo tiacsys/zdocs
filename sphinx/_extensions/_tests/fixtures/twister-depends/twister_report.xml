@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- depends_met and skip_class. The run on qemu_x86 sets CONFIG_DEMO_FEATURE,
+     the one on mps2/an385 does not (its .config says "is not set"). -->
+<testsuites>
+  <testsuite name="qemu_x86" tests="5" failures="0" errors="0" skipped="1">
+    <testcase classname="kernel.demo" name="kernel.demo.demo_suite.needs_feature" time="0.10" />
+    <testcase classname="kernel.demo" name="kernel.demo.demo_suite.ran_anyway" time="0.10" />
+    <testcase classname="kernel.demo" name="kernel.demo.demo_suite.local_macro" time="0.00">
+      <skipped type="skipped" message="ztest skip" />
+    </testcase>
+    <testcase classname="kernel.demo" name="kernel.demo.demo_suite.plain" time="0.10" />
+    <testcase classname="kernel.demo.soak" name="kernel.demo.soak.demo_suite.plain" time="0.00">
+      <skipped type="build" message="built only" />
+    </testcase>
+  </testsuite>
+  <testsuite name="mps2/an385" tests="4" failures="0" errors="0" skipped="3">
+    <testcase classname="kernel.demo" name="kernel.demo.demo_suite.needs_feature" time="0.00">
+      <skipped type="skipped" message="ztest skip" />
+    </testcase>
+    <testcase classname="kernel.demo" name="kernel.demo.demo_suite.ran_anyway" time="0.10" />
+    <testcase classname="kernel.demo" name="kernel.demo.demo_suite.local_macro" time="0.00">
+      <skipped type="skipped" message="ztest skip" />
+    </testcase>
+    <testcase classname="kernel.demo.big" name="kernel.demo.big.demo_suite.plain" time="0.00">
+      <skipped type="skipped" message="RAM overflow" />
+    </testcase>
+  </testsuite>
+</testsuites>

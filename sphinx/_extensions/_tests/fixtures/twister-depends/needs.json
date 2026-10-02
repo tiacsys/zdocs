@@ -1,0 +1,52 @@
+{
+  "current_version": "1.0",
+  "versions": {
+    "1.0": {
+      "needs": {
+        "TSPEC-DEMO-001": {
+          "id": "TSPEC-DEMO-001",
+          "type": "test_case",
+          "title": "needs feature",
+          "test_function": "test_needs_feature",
+          "test_module": "tests/kernel/demo",
+          "suite": "demo_suite",
+          "suite_title": "Demo suite",
+          "verifies": [],
+          "depends_on": "CONFIG_DEMO_FEATURE"
+        },
+        "TSPEC-DEMO-002": {
+          "id": "TSPEC-DEMO-002",
+          "type": "test_case",
+          "title": "local macro",
+          "test_function": "test_local_macro",
+          "test_module": "tests/kernel/demo",
+          "suite": "demo_suite",
+          "suite_title": "Demo suite",
+          "verifies": [],
+          "depends_on": "Z_DEMO_LOCAL_MACRO; CONFIG_DEMO_FEATURE"
+        },
+        "TSPEC-DEMO-003": {
+          "id": "TSPEC-DEMO-003",
+          "type": "test_case",
+          "title": "plain",
+          "test_function": "test_plain",
+          "test_module": "tests/kernel/demo",
+          "suite": "demo_suite",
+          "suite_title": "Demo suite",
+          "verifies": []
+        },
+        "TSPEC-DEMO-004": {
+          "id": "TSPEC-DEMO-004",
+          "type": "test_case",
+          "title": "ran anyway",
+          "test_function": "test_ran_anyway",
+          "test_module": "tests/kernel/demo",
+          "suite": "demo_suite",
+          "suite_title": "Demo suite",
+          "verifies": [],
+          "depends_on": "!defined(CONFIG_DEMO_FEATURE) && defined(CONFIG_MULTITHREADING)"
+        }
+      }
+    }
+  }
+}

@@ -17,8 +17,9 @@ from input_tracking import (  # noqa: F401  (the other hooks are re-exported for
     _outdated_by_input_change,
     _purge_inputs,
 )
-from needs_fields import depends_field
+from needs_fields import depends_field, field_type
 from rst_builders import (
+    RESULT_FIELD_ROLES,
     _need_name,
     build_need_rst,
     build_procedure_need_rst,
@@ -27,12 +28,16 @@ from rst_builders import (
 )
 from sphinx.util import logging
 from twister_reader import (
+    depends_met,
+    find_build_config,
     find_handler_log,
     fold_parameterized_results,
     load_spec_lookup,
     load_twister_meta,
     parse_twister_results,
+    read_kconfig,
     scenario_selected,
+    skip_class,
     testcase_statuses,
     testsuite_paths,
 )
@@ -100,7 +105,8 @@ def _need_names_from_config(app):
     so this only changes behaviour for those stand-ins, not for a real build.
     """
     return {**getattr(app.config, "testmodule_need_types", {}),
-            **getattr(app.config, "testmodule_need_links", {})}
+            **getattr(app.config, "testmodule_need_links", {}),
+            **getattr(app.config, "testreport_need_fields", {})}
 
 
 # ---------------------------------------------------------------------------
@@ -259,8 +265,61 @@ def _spec_info(spec_lookup, suite, fn):
     return None
 
 
-def _build_results_rst(suite_order, func_order, grouped, spec_lookup, need_names=None):
-    """Build RST lines for all test_result needs, grouped into one section per suite."""
+def _assess_results(results, spec_lookup, tw_meta, run_dir, note_input=None):
+    """Set ``depends_met`` on every result and ``skip_class`` on every skipped one.
+
+    ``depends_met`` says whether the build that produced a result met its test
+    case's ``depends_on`` (`twister_reader.depends_met`), read from that
+    build's ``.config`` under ``run_dir`` (`find_build_config`; the testsuite's
+    toolchain and path come from ``tw_meta``, the run's twister.json).
+    ``note_input(path)`` is called for each ``.config`` read.
+
+    Returns ``{(case id, condition)}`` for the conditions that could not be
+    evaluated, for the caller to warn about once each.
+    """
+    suites = {
+        (ts.get("platform", ""), ts.get("name", "")): ts
+        for ts in (tw_meta or {}).get("testsuites", [])
+    }
+    configs, unparseable = {}, set()
+    for r in results:
+        info = spec_lookup.find(r["suite"], r["function"])
+        conditions = (info or {}).get("depends_on") or []
+        symbols = None
+        if conditions and (ts := suites.get((r["platform"], r["scenario"]))):
+            path = find_build_config(
+                run_dir, r["platform"], ts.get("toolchain", ""), ts.get("path", ""),
+                r["scenario"],
+            )
+            if path is not None:
+                if path not in configs:
+                    if note_input:
+                        note_input(path)
+                    configs[path] = read_kconfig(path)
+                symbols = configs[path]
+        met, bad = depends_met(conditions, symbols)
+        unparseable.update((info["id"], c) for c in bad)
+        r["depends_met"] = met
+        if (cls := skip_class(r, met)) is not None:
+            r["skip_class"] = cls
+    return unparseable
+
+
+def _declared_result_fields(env, need_names):
+    """The result-field roles whose consumer-named field sphinx-needs has declared."""
+    return {
+        role for role in RESULT_FIELD_ROLES
+        if field_type(env, _need_name(need_names, role)) is not None
+    }
+
+
+def _build_results_rst(
+    suite_order, func_order, grouped, spec_lookup, need_names=None, fields=(),
+):
+    """Build RST lines for all test_result needs, grouped into one section per suite.
+
+    ``fields``: the result-field roles to set (`rst_builders.build_result_rst`).
+    """
     lines = []
     for suite in suite_order:
         suite_title = next(
@@ -279,7 +338,8 @@ def _build_results_rst(suite_order, func_order, grouped, spec_lookup, need_names
                 continue
             for r in grouped[(suite, fn)]:
                 lines += build_result_rst(
-                    r, info["id"], info["test_module"], info.get("req_ids"), need_names=need_names
+                    r, info["id"], info["test_module"], info.get("req_ids"),
+                    need_names=need_names, fields=fields,
                 ).splitlines()
                 lines.append("")
     return lines
@@ -695,10 +755,24 @@ class TestReportDirective(Directive):
         if not results:
             return [nodes.paragraph(text="[testreport: no matching results]")]
 
+        # Each build's .config lives in the run directory the report is in.
+        unparseable = _assess_results(
+            results, spec_lookup, tw_meta, Path(xml_path).parent,
+            note_input=lambda path: _note_input(env, path),
+        )
+        for case_id, condition in sorted(unparseable):
+            logger.warning(
+                f"testreport: {case_id}: depends_on condition {condition!r} is not "
+                f"a Kconfig expression zdocs evaluates — its results get depends_met n/a"
+            )
+
         suite_order, func_order, grouped = _group_results(results)
         twister_out_dir = getattr(app.config, "twister_output_dir", "")
         all_rst = (
-            _build_results_rst(suite_order, func_order, grouped, spec_lookup, need_names=need_names)
+            _build_results_rst(
+                suite_order, func_order, grouped, spec_lookup, need_names=need_names,
+                fields=_declared_result_fields(env, need_names),
+            )
             + _build_summary_table_rst(grouped, spec_lookup, need_names=need_names)
             + _build_exec_logs_rst(twister_out_dir, module_filter, path_filter)
         )
@@ -793,6 +867,13 @@ def setup(app):
     app.add_config_value(
         "testmodule_need_links",
         {"verifies": "verifies", "result_of": "result_of", "covers": "covers"},
+        "env",
+    )
+    # Result FIELD roles -> names; a field is set only where the consumer
+    # declared it under that name (see _declared_result_fields).
+    app.add_config_value(
+        "testreport_need_fields",
+        {"depends_met": "depends_met", "skip_class": "skip_class"},
         "env",
     )
     app.add_directive("testmodule", TestModuleDirective)
