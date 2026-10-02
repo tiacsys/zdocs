@@ -1,0 +1,29 @@
+# Copyright (c) 2026 inovex GmbH
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+# West manifest for the documentation workflow (.github/workflows/docs.yml).
+# It is not a manifest for consumers: they add zdocs as a project of their
+# own manifest.
+#
+#   west init -l --mf doc/west.yml zdocs
+#   west update --narrow --fetch-opt=--depth=1
+#
+# The build of doc/ needs Zephyr only as a CMake package
+# (find_package(Zephyr COMPONENTS doc)) and its doc/_extensions. No
+# toolchain, no SDK, no HAL. So the manifest has no `import:` key.
+
+manifest:
+  version: "0.13"
+
+  remotes:
+    - name: zephyrproject
+      url-base: https://github.com/zephyrproject-rtos
+
+  self:
+    path: zdocs
+
+  projects:
+    - name: zephyr
+      remote: zephyrproject
+      revision: v4.4.1

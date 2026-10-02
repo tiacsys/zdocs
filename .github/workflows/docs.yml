@@ -1,0 +1,194 @@
+# Copyright (c) 2026 inovex GmbH
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+# Builds the documentation of zdocs itself (doc/: the manual and the API
+# reference) and publishes it to GitHub Pages
+# (https://tiacsys.github.io/zdocs/).
+#
+# - Pull request: build and checks only.
+# - Push to main, or a manual run on main: build, checks, deploy.
+#
+# Not in this workflow: the engine unit tests, the zdocs-tests acceptance
+# suite and twister runs. This document set has no PDF and no Doxygen
+# document.
+#
+# One-time repository setting: Settings > Pages > Source = "GitHub Actions".
+
+name: Documentation
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docs-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # zdocs runs find_package(Doxygen REQUIRED) at configure time, also for a
+  # document set without a Doxygen document. The job uses the same Doxygen
+  # as the consumers (>= 1.16 for native \verifies and \satisfies): the
+  # official release binary, checked by hash. Ubuntu has older packages.
+  DOXYGEN_VERSION: "1.16.1"
+  DOXYGEN_SHA256: "a56f885d37e3aae08a99f638d17bbb381224c03a878d9e2dda4f9fa4baf1d8bd"
+
+jobs:
+  build:
+    name: Build documentation
+    runs-on: ubuntu-24.04
+    env:
+      # find_package(Zephyr) in doc/CMakeLists.txt finds Zephyr through
+      # ZEPHYR_BASE. West does not set it.
+      ZEPHYR_BASE: ${{ github.workspace }}/zephyr
+    steps:
+      # The west workspace is the job's work directory: this repository is
+      # the manifest repository at zdocs/, doc/west.yml adds zephyr/.
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: zdocs
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: zdocs/doc/requirements-ci.txt
+
+      - name: Install Python packages
+        run: python -m pip install -r zdocs/doc/requirements-ci.txt
+
+      # dot renders the graphviz diagrams of the architecture pages.
+      - name: Install Graphviz
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends graphviz
+
+      - name: Restore Doxygen
+        id: doxygen-cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/doxygen
+          key: doxygen-${{ env.DOXYGEN_VERSION }}-${{ env.DOXYGEN_SHA256 }}
+
+      - name: Download Doxygen
+        if: steps.doxygen-cache.outputs.cache-hit != 'true'
+        run: |
+          tag="Release_${DOXYGEN_VERSION//./_}"
+          curl -sSfL -o doxygen.tar.gz \
+            "https://github.com/doxygen/doxygen/releases/download/${tag}/doxygen-${DOXYGEN_VERSION}.linux.bin.tar.gz"
+          echo "${DOXYGEN_SHA256}  doxygen.tar.gz" | sha256sum --check --strict
+          mkdir -p ~/doxygen
+          tar -xzf doxygen.tar.gz -C ~/doxygen --strip-components=1
+          rm doxygen.tar.gz
+
+      - name: Put Doxygen on the path
+        run: echo "${HOME}/doxygen/bin" >> "${GITHUB_PATH}"
+
+      - name: Show tool versions
+        run: |
+          doxygen --version
+          dot -V
+          cmake --version | head -n 1
+          python --version
+          west --version
+          python -m pip freeze
+
+      # Zephyr is needed only as a CMake package (find_package(Zephyr
+      # COMPONENTS doc)) and for its doc/_extensions: no toolchain, no SDK,
+      # no module. A narrow, shallow update fetches Zephyr only, at depth 1.
+      - name: Set up the west workspace
+        run: |
+          west init -l --mf doc/west.yml zdocs
+          west update --narrow --fetch-opt=--depth=1
+          west list
+
+      - name: Configure
+        run: cmake -S zdocs/doc -B build/doc
+
+      # Stage two of the build is all-or-nothing, so the stage-one indexes
+      # of every document come first. all-docs runs doc-check as its last
+      # step.
+      - name: Build the documents
+        run: |
+          cmake --build build/doc --target doc-index
+          cmake --build build/doc --target all-docs
+
+      - name: Check cross-document links
+        run: cmake --build build/doc --target doc-check
+
+      # The stage-two logs (html.log) hold only the warnings of the final
+      # build. The baseline is zero warnings.
+      - name: Check for warnings
+        run: |
+          if grep -nE 'WARNING|ERROR' build/doc/*/build/html.log; then
+            echo "::error::the documentation build has warnings"
+            exit 1
+          fi
+
+      # The site root is deploy/html/, as doc/manual/explanation/
+      # deploy-layout.rst describes: the documents are at <document>/. The
+      # landing page sits at the root, next to them. This document set has
+      # no Doxygen document, so the Doxygen cross-document navigation (it
+      # expects the deploy/ level as the root) is not in the site.
+      - name: Assemble the site
+        run: |
+          cp -a build/doc/deploy/html build/site
+          cp zdocs/doc/site/index.html build/site/index.html
+
+      - name: Check the links of the site
+        run: python zdocs/.github/scripts/check_site.py build/site
+
+      # Nothing private goes public: no local paths, no addresses, no tokens.
+      # The reference pages use jane@example.com and john@example.com as
+      # sample values, so example.com, .org and .net are accepted.
+      - name: Audit the site
+        working-directory: build/site
+        run: |
+          status=0
+          refuse() {
+            if grep -rlIE -- "$2" .; then
+              echo "::error::the site contains $1"
+              status=1
+            fi
+          }
+          refuse "a local absolute path" '/home/[^/ ]+/|/Users/|/tmp/|/wrk/'
+          refuse "a local server address" 'localhost:[0-9]|127\.0\.0\.1'
+          refuse "a token or a private key" 'ghp_|gho_|github_pat_|glpat-|AKIA[0-9A-Z]{16}|xox[baprs]-|-----BEGIN [A-Z ]*PRIVATE KEY'
+          if grep -rhoIE '[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}' . \
+              | grep -vE '@example\.(com|org|net)$'; then
+            echo "::error::the site contains an e-mail address"
+            status=1
+          fi
+          exit "${status}"
+
+      - name: Upload the site
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: build/site
+
+  deploy:
+    name: Deploy to GitHub Pages
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    steps:
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
