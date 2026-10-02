@@ -94,6 +94,11 @@ layout, not toggled from outside it.
    link's incoming side. One field is optional: ``depends_on`` (the
    ``@kconfig_depends`` conditions) is set only if declared here.
 
+   A change to the file's content makes every document that reads it re-read
+   its sources on the next incremental build (the engine's
+   ``needs_config_state`` extension), because sphinx-needs itself rebuilds only
+   the HTML when a type, link or field changes.
+
    This variable is real and load-bearing — every sample and fixture in this
    repository that uses sphinx-needs sets it — but it is not mentioned
    alongside the others in ``cmake/zdocs.cmake``'s own "Consumer configuration"
