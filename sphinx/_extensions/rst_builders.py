@@ -47,7 +47,15 @@ _DEFAULT_NEED_NAMES = {
     # symbolneeds: an API symbol, and the requirements it satisfies.
     "implementation": "impl",
     "satisfies": "satisfies",
+    # testreport: result FIELDS, named by the consumer too
+    # (`testreport_need_fields`). Whether the build met the case's
+    # depends_on, and why a skipped result was skipped.
+    "depends_met": "depends_met",
+    "skip_class": "skip_class",
 }
+
+#: The result-field roles `build_result_rst` can set (see its ``fields``).
+RESULT_FIELD_ROLES = ("depends_met", "skip_class")
 
 
 def _need_name(need_names, role):
@@ -241,8 +249,13 @@ def build_procedure_need_rst(
     return "\n".join(lines)
 
 
-def build_result_rst(r, spec_id, test_module, req_ids=None, need_names=None):
-    """Build RST block for one test_result need."""
+def build_result_rst(r, spec_id, test_module, req_ids=None, need_names=None, fields=()):
+    """Build RST block for one test_result need.
+
+    ``fields``: the result-field roles (`RESULT_FIELD_ROLES`) to set, under
+    their names from ``need_names``, where ``r`` has a value for them — the
+    ones the consumer declared; an undeclared option warns per need.
+    """
     need_id = f"TR-{slugify(r['platform'])}-{slugify(r['scenario'])}-{spec_id}"
     fn = r["function"]
     title = (fn[5:] if fn.startswith("test_") else fn).replace("_", " ")
@@ -264,6 +277,9 @@ def build_result_rst(r, spec_id, test_module, req_ids=None, need_names=None):
         lines.append(f"   :{_need_name(need_names, 'covers')}: {'; '.join(req_ids)}")
     if r["reason"]:
         lines.append(f"   :reason: {r['reason']}")
+    for role in RESULT_FIELD_ROLES:
+        if role in fields and r.get(role):
+            lines.append(f"   :{_need_name(need_names, role)}: {r[role]}")
     lines.append("")
     if r.get("values"):
         lines += _values_rst(r)

@@ -1,0 +1,82 @@
+{
+  "environment": {
+    "run_date": "2026-10-03T10:00:00+00:00",
+    "zephyr_version": "4.4.0",
+    "toolchain": "zephyr",
+    "os": "linux"
+  },
+  "testsuites": [
+    {
+      "name": "kernel.demo",
+      "platform": "qemu_x86",
+      "path": "tests/kernel/demo",
+      "toolchain": "zephyr/gnu",
+      "status": "passed",
+      "testcases": [
+        {
+          "identifier": "kernel.demo.demo_suite.needs_feature",
+          "status": "passed"
+        },
+        {
+          "identifier": "kernel.demo.demo_suite.ran_anyway",
+          "status": "passed"
+        },
+        {
+          "identifier": "kernel.demo.demo_suite.local_macro",
+          "status": "skipped"
+        },
+        {
+          "identifier": "kernel.demo.demo_suite.plain",
+          "status": "passed"
+        }
+      ]
+    },
+    {
+      "name": "kernel.demo.soak",
+      "platform": "qemu_x86",
+      "path": "tests/kernel/demo",
+      "toolchain": "zephyr/gnu",
+      "status": "passed",
+      "testcases": [
+        {
+          "identifier": "kernel.demo.soak.demo_suite.plain",
+          "status": "not run"
+        }
+      ]
+    },
+    {
+      "name": "kernel.demo",
+      "platform": "mps2/an385",
+      "path": "tests/kernel/demo",
+      "toolchain": "zephyr/gnu",
+      "status": "passed",
+      "testcases": [
+        {
+          "identifier": "kernel.demo.demo_suite.needs_feature",
+          "status": "skipped"
+        },
+        {
+          "identifier": "kernel.demo.demo_suite.ran_anyway",
+          "status": "passed"
+        },
+        {
+          "identifier": "kernel.demo.demo_suite.local_macro",
+          "status": "skipped"
+        }
+      ]
+    },
+    {
+      "name": "kernel.demo.big",
+      "platform": "mps2/an385",
+      "path": "tests/kernel/demo",
+      "toolchain": "zephyr/gnu",
+      "status": "passed",
+      "testcases": [
+        {
+          "identifier": "kernel.demo.big.demo_suite.plain",
+          "status": "skipped"
+        }
+      ]
+    }
+  ]
+}

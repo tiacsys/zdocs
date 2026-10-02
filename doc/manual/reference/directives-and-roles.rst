@@ -176,6 +176,35 @@ result, which takes its status from them and lists the values that did not
 pass (:doc:`../explanation/testmodule-and-twister`). No need type or field is
 added for this; the values render in the need's body.
 
+Each result also says whether its build met the test case's ``depends_on``
+(the ``@kconfig_depends`` conditions below), and each skipped result why it was
+skipped. Both are read from the run, not from the spec alone:
+
+``depends_met``
+   ``yes`` or ``no``: the case's conditions, all of which must hold, evaluated
+   against the ``.config`` twister kept for that build
+   (``<platform>/<toolchain>/<test path>/<scenario>/zephyr/.config`` under the
+   report's directory). ``CONFIG_X`` and ``defined(CONFIG_X)`` are true when
+   the symbol has a value (``=y``, a number, a string; not ``is not set``);
+   ``!``, ``&&``, ``||`` and parentheses combine them. ``n/a`` when the case
+   has no condition, the build's ``.config`` is not there, or a condition uses
+   anything else (another macro, ``IS_ENABLED()``, a comparison): its value is
+   not known from ``.config``, so none is guessed, and the build warns once per
+   case and condition. A result that passed with ``no`` ran although its
+   condition was false.
+``skip_class``
+   On skipped results only. ``build-only``: twister built the test but did not
+   run it. ``platform``: a memory region overflowed, or the platform was
+   filtered out. ``config``: ztest skipped it and ``depends_met`` is ``no``.
+   ``unexplained``: anything else.
+
+Both are set only where your ``needs_config.toml`` declares them (string
+fields), under names you may choose, like the need types and links:
+
+.. code-block:: python
+
+   testreport_need_fields = {"depends_met": "depends_met", "skip_class": "skip_class"}  # defaults
+
 Both directives **soft-fail** to a short "not found" paragraph
 when their input is absent, rather than failing the build — a documentation
 build outrunning its test run is a normal pipeline state. ``testmodule`` does

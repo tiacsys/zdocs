@@ -27,6 +27,12 @@ __all__ = [
     "SpecLookup",
     "load_spec_lookup",
     "find_handler_log",
+    "find_build_config",
+    "read_kconfig",
+    "UnparseableCondition",
+    "evaluate_condition",
+    "depends_met",
+    "skip_class",
     "load_twister_meta",
 ]
 
@@ -361,10 +367,24 @@ def load_spec_lookup(json_path, need_names=None):
             "suite": need.get("suite", ""),
             "suite_title": need.get("suite_title", ""),
             "req_ids": need.get(verifies_link, []),
+            "depends_on": _conditions(need.get("depends_on")),
         }
         for need_id, need in needs.items()
         if need.get("type") == case_type and need.get("test_function")
     )
+
+
+def _conditions(value):
+    """A need's ``depends_on`` as a list of conditions.
+
+    zdocs writes it as a string with the conditions joined by ``"; "``; a
+    consumer that declares it as an array gets a list from sphinx-needs.
+    """
+    if not value:
+        return []
+    if isinstance(value, str):
+        return [c.strip() for c in value.split("; ") if c.strip()]
+    return [str(c).strip() for c in value if str(c).strip()]
 
 
 def _out_dir_segment(test_path):
@@ -412,6 +432,204 @@ def find_handler_log(twister_out_dir, platform, toolchain, test_path, scenario_n
     if flat.exists():
         return flat
     return None
+
+
+def find_build_config(twister_out_dir, platform, toolchain, test_path, scenario_name):
+    """Return the Path to the Kconfig ``.config`` of a (platform, scenario) build, or None.
+
+    Twister keeps each build under the run directory `find_handler_log`
+    describes, with the build's ``zephyr/.config`` in it. Unlike the log, the
+    configuration is looked up only where twister puts it (the path layout,
+    or the flat ``--detailed-test-id`` one): a ``.config`` of another scenario
+    would answer for a build it did not come from.
+    """
+    run_dir = Path(twister_out_dir) / platform.replace("/", "_") / toolchain.replace("/", "_")
+    for base in (run_dir / _out_dir_segment(test_path) / scenario_name, run_dir / scenario_name):
+        config = base / "zephyr" / ".config"
+        if config.is_file():
+            return config
+    return None
+
+
+_KCONFIG_SET = re.compile(r"^(CONFIG_[A-Za-z0-9_]+)=")
+
+
+def read_kconfig(path):
+    """The Kconfig symbols a ``.config`` sets, as a set of names.
+
+    A symbol is set when it has a value (``=y``, ``=m``, a number, a string);
+    ``# CONFIG_X is not set`` and a symbol that is absent are not.
+    """
+    symbols = set()
+    for line in Path(path).read_text(errors="replace").splitlines():
+        if m := _KCONFIG_SET.match(line):
+            symbols.add(m.group(1))
+    return symbols
+
+
+class UnparseableCondition(ValueError):
+    """A ``depends_on`` condition outside the grammar `evaluate_condition` reads."""
+
+
+_CONDITION_TOKEN = re.compile(r"\s*(&&|\|\||!|\(|\)|defined\b|CONFIG_[A-Za-z0-9_]+\b)")
+
+
+def _tokens(condition):
+    tokens, pos = [], 0
+    text = condition.strip()
+    while pos < len(text):
+        m = _CONDITION_TOKEN.match(text, pos)
+        if not m:
+            raise UnparseableCondition(condition)
+        tokens.append(m.group(1))
+        pos = m.end()
+        while pos < len(text) and text[pos].isspace():
+            pos += 1
+    return tokens
+
+
+def evaluate_condition(condition, symbols):
+    """Whether Kconfig ``condition`` holds for the set ``symbols`` (`read_kconfig`).
+
+    The grammar: ``CONFIG_X`` and ``defined(CONFIG_X)`` (or ``defined CONFIG_X``)
+    are true iff the symbol is set; ``!``, ``&&``, ``||`` (in C's precedence)
+    and parentheses combine them. Anything else — another macro,
+    ``IS_ENABLED()``, a comparison, a number — raises `UnparseableCondition`:
+    its value in the build is not known from ``.config`` alone.
+    """
+    tokens = _tokens(condition)
+    if not tokens:
+        raise UnparseableCondition(condition)
+    pos = 0
+
+    def peek():
+        return tokens[pos] if pos < len(tokens) else None
+
+    def take(expected=None):
+        nonlocal pos
+        tok = peek()
+        if tok is None or (expected is not None and tok != expected):
+            raise UnparseableCondition(condition)
+        pos += 1
+        return tok
+
+    def primary():
+        tok = take()
+        if tok == "!":
+            return not primary()
+        if tok == "(":
+            value = disjunction()
+            take(")")
+            return value
+        if tok == "defined":
+            if peek() == "(":
+                take("(")
+                name = take()
+                take(")")
+            else:
+                name = take()
+            if not name.startswith("CONFIG_"):
+                raise UnparseableCondition(condition)
+            return name in symbols
+        if tok.startswith("CONFIG_"):
+            return tok in symbols
+        raise UnparseableCondition(condition)
+
+    def conjunction():
+        value = primary()
+        while peek() == "&&":
+            take()
+            rhs = primary()
+            value = value and rhs
+        return value
+
+    def disjunction():
+        value = conjunction()
+        while peek() == "||":
+            take()
+            rhs = conjunction()
+            value = value or rhs
+        return value
+
+    result = disjunction()
+    if pos != len(tokens):
+        raise UnparseableCondition(condition)
+    return result
+
+
+#: `depends_met` values.
+MET, NOT_MET, UNKNOWN = "yes", "no", "n/a"
+
+
+def depends_met(conditions, symbols):
+    """``(value, unparseable)`` for a test case's ``depends_on`` in one build.
+
+    ``conditions`` are the case's conditions, all of which must hold (the
+    ``"; "`` of ``depends_on`` is an and); ``symbols`` is the build's set
+    Kconfig symbols, or None when its ``.config`` was not found. The value is
+    ``"yes"`` or ``"no"``, or ``"n/a"`` when the case has no condition, the
+    build has no ``.config``, or a condition is outside `evaluate_condition`'s
+    grammar — then ``unparseable`` lists those conditions, and no value is
+    guessed, even when another condition is false.
+    """
+    conditions = [c for c in (conditions or []) if c]
+    if not conditions or symbols is None:
+        return UNKNOWN, []
+    values, unparseable = [], []
+    for condition in conditions:
+        try:
+            values.append(evaluate_condition(condition, symbols))
+        except UnparseableCondition:
+            unparseable.append(condition)
+    if unparseable:
+        return UNKNOWN, unparseable
+    return (MET if all(values) else NOT_MET), []
+
+
+#: `skip_class` values.
+SKIP_CONFIG, SKIP_PLATFORM, SKIP_BUILD_ONLY, SKIP_UNEXPLAINED = (
+    "config", "platform", "build-only", "unexplained",
+)
+
+#: ztest's own skip (``ztest_test_skip()``), as twister reports it.
+_ZTEST_SKIP = "ztest skip"
+#: A build twister did not run (``build_only``; twister.json: "Test was built only").
+_BUILD_ONLY = re.compile(r"^(test was )?built only$", re.IGNORECASE)
+#: The platform could not take the build: a memory region overflowed, or
+#: twister filtered the platform out.
+_PLATFORM = re.compile(r"\b(RAM|FLASH|ROM) overflow\b|\bplatform\b", re.IGNORECASE)
+
+
+def _skip_reason(result):
+    """The skip reason of a result; for a parameterized test, its values' common one."""
+    values = result.get("values")
+    if values:
+        reasons = {v.get("reason", "") for v in values if v.get("status") == "skipped"}
+        if len(reasons) == 1:
+            return reasons.pop()
+    return result.get("reason", "")
+
+
+def skip_class(result, met):
+    """The class of a skipped result (None for any other), given its `depends_met`.
+
+    ``build-only``: twister built the test but did not run it. ``platform``:
+    the platform could not take it (a memory region overflowed, or it was
+    filtered by platform). ``config``: ztest skipped it and the case's
+    ``depends_on`` is false in the build. ``unexplained``: anything else,
+    including a ztest skip whose condition holds, cannot be evaluated, or is
+    not recorded.
+    """
+    if result.get("status") != "skipped":
+        return None
+    reason = " ".join(_skip_reason(result).split())
+    if _BUILD_ONLY.match(reason):
+        return SKIP_BUILD_ONLY
+    if _PLATFORM.search(reason):
+        return SKIP_PLATFORM
+    if reason == _ZTEST_SKIP and met == NOT_MET:
+        return SKIP_CONFIG
+    return SKIP_UNEXPLAINED
 
 
 def load_twister_meta(json_path):
