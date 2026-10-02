@@ -196,6 +196,33 @@ def test_build_scenario_table_missing_yaml():
     assert lines == []
 
 
+def test_find_scenario_yaml_takes_tests_yaml(tmp_path):
+    # Newer Zephyr trees name the file tests.yaml.
+    (tmp_path / "tests.yaml").write_text("tests: {}\n")
+    assert rb.find_scenario_yaml(tmp_path) == tmp_path / "tests.yaml"
+
+
+def test_find_scenario_yaml_takes_sample_yaml(tmp_path):
+    (tmp_path / "sample.yaml").write_text("tests: {}\n")
+    assert rb.find_scenario_yaml(tmp_path) == tmp_path / "sample.yaml"
+
+
+def test_find_scenario_yaml_follows_twister_order(tmp_path):
+    # Twister reads testcase.yaml first, so it wins over tests.yaml.
+    for name in ("testcase.yaml", "tests.yaml", "sample.yaml"):
+        (tmp_path / name).write_text("tests: {}\n")
+    assert rb.find_scenario_yaml(tmp_path) == tmp_path / "testcase.yaml"
+
+
+def test_find_scenario_yaml_warns_with_the_names_it_tried(tmp_path, caplog):
+    with caplog.at_level("WARNING", logger=rb.logger.name):
+        assert rb.find_scenario_yaml(tmp_path) is None
+    message = caplog.text
+    assert str(tmp_path) in message
+    for name in ("testcase.yaml", "tests.yaml", "sample.yaml"):
+        assert name in message
+
+
 def test_build_procedure_need_rst_links_prose_but_keeps_title_plain():
     # A need's title is not parsed as RST, so link markup there would render
     # verbatim; the details are parsed and link like the see-also line does.

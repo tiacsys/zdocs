@@ -406,7 +406,7 @@ def test_testmodule_directive_suite_heading(app):
 
 
 @pytest.mark.sphinx("html", srcdir=str(_ROOTS / "test-testmodule"))
-def test_testmodule_directive_notes_its_xml_and_testcase_yaml_as_inputs(app):
+def test_testmodule_directive_notes_its_xml_and_scenario_files_as_inputs(app):
     # Without these, an incremental build after the test sources change (a
     # retagged status, a renamed test) keeps the old test cases.
     app.build()
@@ -414,7 +414,8 @@ def test_testmodule_directive_notes_its_xml_and_testcase_yaml_as_inputs(app):
     xml_dir = Path(app.config.testmodule_xml_dir)
     assert str(xml_dir / "index.xml") in inputs
     assert any(p.endswith(".xml") and "group__" in p for p in inputs)
-    assert any(p.endswith("testcase.yaml") for p in inputs)
+    for name in ("testcase.yaml", "tests.yaml", "sample.yaml"):
+        assert any(p.endswith(name) for p in inputs)
 
 
 @pytest.mark.sphinx("html", srcdir=str(_ROOTS / "test-testmodule"))

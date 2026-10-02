@@ -100,7 +100,8 @@ The chain from annotated ztest C source to a rendered, traceable test report
 
 ``testmodule``'s argument is a Doxygen ``@defgroup`` name (the *module* group,
 never a suite or a path); ``:module:`` is a project-relative path used only to
-locate that module's ``testcase.yaml`` for the rendered scenario table. Every
+locate that module's scenario file for the rendered scenario table: the first
+of ``testcase.yaml``, ``tests.yaml`` and ``sample.yaml`` that exists. Every
 ``ZTEST``/``ZTEST_SUITE``/... in the named group and its inner suite/procedure
 groups becomes one need each — nothing is written by hand per test case.
 

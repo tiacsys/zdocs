@@ -84,8 +84,9 @@ vocabulary rather than ``test_case``/``verifies``/etc., is a matching pair of
       :module: checks/widget/probe
 
 The argument is the Doxygen **module** group's name, never a suite; ``:module:``
-is a project-relative path used only to find that module's ``testcase.yaml``
-for the scenario table.
+is a project-relative path used only to find that module's scenario file
+for the scenario table. That file is the first of ``testcase.yaml``,
+``tests.yaml`` and ``sample.yaml`` that exists, in twister's order.
 
 6. Add the report half (optional)
 ---------------------------------------

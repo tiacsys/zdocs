@@ -20,11 +20,13 @@ from input_tracking import (  # noqa: F401  (the other hooks are re-exported for
 from needs_fields import depends_field, field_type
 from rst_builders import (
     RESULT_FIELD_ROLES,
+    SCENARIO_YAML_NAMES,
     _need_name,
     build_need_rst,
     build_procedure_need_rst,
     build_result_rst,
     build_scenario_table,
+    find_scenario_yaml,
 )
 from sphinx.util import logging
 from twister_reader import (
@@ -629,9 +631,13 @@ class TestModuleDirective(Directive):
         suite_refids, proc_refids = _classify_inner_groups(module_cdef, xml_dir)
 
         need_names = _need_names_from_config(app)
-        testcase_yaml = Path(module_root) / module_path / "testcase.yaml"
-        _note_input(env, testcase_yaml)
-        scenario_lines = build_scenario_table(testcase_yaml)
+        # Each name twister accepts is an input, so a scenario file that is
+        # added or renamed later also re-reads the document.
+        module_dir = Path(module_root) / module_path
+        for name in SCENARIO_YAML_NAMES:
+            _note_input(env, module_dir / name)
+        scenario_yaml = find_scenario_yaml(module_dir)
+        scenario_lines = build_scenario_table(scenario_yaml) if scenario_yaml else []
         all_rst = list(scenario_lines)
         for suite_refid in suite_refids:
             all_rst += _build_suite_rst(
