@@ -145,6 +145,19 @@ def _classify_inner_groups(module_cdef: ET.Element, xml_dir: Path):
     return suite_refids, proc_refids
 
 
+def _tag_dirs(tag_urls, page_prefix):
+    """``testmodule_tag_urls`` as seen from the current page.
+
+    A peer's HTML directory is relative to this document's root, so it gets
+    the page's ``../`` prefix, as ``api_doxygen_url`` does; an absolute URL
+    (a ``doxygen-external`` peer) is used as it is.
+    """
+    return {
+        tag: url if "://" in url or url.startswith("/") else page_prefix + url
+        for tag, url in (tag_urls or {}).items()
+    }
+
+
 def suite_name_from_group(group_name, qualifier=""):
     """The ztest suite name a suite group's compoundname stands for.
 
@@ -160,7 +173,7 @@ def suite_name_from_group(group_name, qualifier=""):
 
 def _build_suite_rst(
     suite_refid, xml_dir, testspec_html_dir, api_html_dir, module_path, need_names=None,
-    depends_field=None, suite_qualifier="",
+    depends_field=None, suite_qualifier="", tag_dirs=None,
 ):
     """Build RST lines for one test suite group (section heading + test_case needs).
 
@@ -170,6 +183,10 @@ def _build_suite_rst(
     ``suite_qualifier`` (`testmodule_suite_qualifier`): the need's ``suite`` is
     the group name after it (`suite_name_from_group`); the fallback id keeps the
     whole group name, which is unique where the suite name need not be.
+
+    ``tag_dirs``: where a tag-file reference links, by tag file
+    (`doxygen_parser.RefLinks.tags`); a reference none names goes to
+    ``api_html_dir``.
     """
     suite_xml = xml_dir / f"{suite_refid}.xml"
     if not suite_xml.exists():
@@ -187,7 +204,9 @@ def _build_suite_rst(
         lines.extend(group_prose)
         lines.append("")
     for memberdef in suite_cdef.findall(".//memberdef[@kind='function']"):
-        info = parse_memberdef(memberdef, compound_id, testspec_html_dir, api_html_dir)
+        info = parse_memberdef(
+            memberdef, compound_id, testspec_html_dir, api_html_dir, tag_dirs
+        )
         if not info["name"]:
             continue
         with_depends = bool(depends_field) and depends_field(
@@ -203,7 +222,9 @@ def _build_suite_rst(
     return lines
 
 
-def _build_proc_group_rst(proc_refid, xml_dir, testspec_html_dir, api_html_dir, need_names=None):
+def _build_proc_group_rst(
+    proc_refid, xml_dir, testspec_html_dir, api_html_dir, need_names=None, tag_dirs=None
+):
     """Build RST lines for one procedure group (section heading + test_procedure needs)."""
     proc_xml = xml_dir / f"{proc_refid}.xml"
     proc_cdef = ET.parse(proc_xml).getroot().find("compounddef")
@@ -222,7 +243,7 @@ def _build_proc_group_rst(proc_refid, xml_dir, testspec_html_dir, api_html_dir, 
         lines.extend(
             build_procedure_need_rst(
                 md, proc_compound_id, proc_group_name, testspec_html_dir, api_html_dir,
-                need_names=need_names,
+                need_names=need_names, tag_dirs=tag_dirs,
             ).splitlines()
         )
         lines.append("")
@@ -562,6 +583,7 @@ class TestModuleDirective(Directive):
         page_prefix = "../" * page_depth
         testspec_html_dir = page_prefix + app.config.testspec_doxygen_url
         api_html_dir = page_prefix + app.config.api_doxygen_url
+        tag_dirs = _tag_dirs(getattr(app.config, "testmodule_tag_urls", {}), page_prefix)
         # testmodule_root is supplied by the engine (zdocs_conf.py, defaulting
         # to ZDOCS_PROJECT_BASE) — no ZEPHYR_BASE fallback: that was a
         # project-specific env var name in a generic engine (decision 5).
@@ -619,10 +641,12 @@ class TestModuleDirective(Directive):
                     env, conditions, subject
                 ),
                 suite_qualifier=getattr(app.config, "testmodule_suite_qualifier", ""),
+                tag_dirs=tag_dirs,
             )
         for proc_refid in proc_refids:
             all_rst += _build_proc_group_rst(
                 proc_refid, xml_dir, testspec_html_dir, api_html_dir, need_names=need_names,
+                tag_dirs=tag_dirs,
             )
 
         _maybe_dump_rst(app, env.docname, "testmodule", group_name, "\n".join(all_rst))
@@ -848,6 +872,10 @@ def setup(app):
     app.add_config_value("testspec_needs_json", "", "env")
     app.add_config_value("testspec_doxygen_url", "", "env")
     app.add_config_value("api_doxygen_url", "", "env")
+    # {Doxygen tag file path: HTML directory of its document}, from the
+    # registry (docrefs.tag_urls): a reference Doxygen resolved through a tag
+    # file links into the document that tag file belongs to.
+    app.add_config_value("testmodule_tag_urls", {}, "env")
     # requirements_url deliberately NOT registered (decision 4): it was
     # computed at conf_test_common.py:56 and consumed nowhere in any of the
     # four modules — deleted outright, not migrated and left unset.

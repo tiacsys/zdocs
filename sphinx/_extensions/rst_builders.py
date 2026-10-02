@@ -174,8 +174,12 @@ def build_procedure_need_rst(
     testspec_html_dir,
     api_html_dir,
     need_names=None,
+    tag_dirs=None,
 ):
-    """Build a test_procedure needs item for one shared test procedure."""
+    """Build a test_procedure needs item for one shared test procedure.
+
+    ``tag_dirs``: where a tag-file reference links (`doxygen_parser.RefLinks.tags`).
+    """
     from doxygen_parser import (
         RefLinks,
         detail_rst_lines,
@@ -211,14 +215,14 @@ def build_procedure_need_rst(
     params = []
     see_rst_str = ""
     if dd is not None:
-        links = RefLinks(api=api_html_dir, local=testspec_html_dir)
+        links = RefLinks(api=api_html_dir, local=testspec_html_dir, tags=tag_dirs)
         params = extract_params(dd, links)
         # Was a second, hand-rolled copy of the same paragraph walk, carrying the
         # same list-dropping defect. One helper now, so a fix lands in both.
         detail_lines = detail_rst_lines(dd, links)
         see_sect = dd.find(".//simplesect[@kind='see']")
         if see_sect is not None:
-            see_rst_str = see_to_rst(see_sect, api_html_dir, testspec_html_dir)
+            see_rst_str = see_to_rst(see_sect, api_html_dir, testspec_html_dir, tag_dirs)
 
     lines = []
     lines.append(f".. {_need_name(need_names, 'procedure')}:: {title}")

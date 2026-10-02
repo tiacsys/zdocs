@@ -3,7 +3,9 @@
 # SPDX-License-Identifier: Apache-2.0
 
 """Doxygen XML parsing — no Sphinx dependency."""
+import os
 import xml.etree.ElementTree as ET
+from collections.abc import Mapping
 from pathlib import Path
 from typing import NamedTuple, TypedDict
 
@@ -57,14 +59,28 @@ class SymbolInfo(TypedDict):
 class RefLinks(NamedTuple):
     """Where a <ref> in Doxygen prose points, as HTML directory URLs.
 
-    ``api`` for a symbol Doxygen resolved through a tag file (``external=``) —
-    the API document the test specification references; ``local`` for one
-    documented in the parsed project itself, such as a shared test procedure.
-    An empty string leaves that kind unlinked.
+    A symbol Doxygen resolved through a tag file carries the tag file's path
+    in ``external=``; ``tags`` maps such a path to the HTML directory of the
+    document that tag file belongs to, so each reference goes to the project
+    that documents the symbol. ``api`` is for a tag-file reference ``tags``
+    does not name — the API document the test specification references.
+    ``local`` is for a symbol documented in the parsed project itself, such as
+    a shared test procedure. An empty string leaves that kind unlinked.
     """
 
     api: str = ""
     local: str = ""
+    tags: Mapping[str, str] | None = None
+
+
+def _tag_base(links: RefLinks, external: str) -> str:
+    """The HTML directory for a reference resolved through tag file ``external``."""
+    if links.tags:
+        wanted = os.path.normpath(external)
+        for tag, url in links.tags.items():
+            if os.path.normpath(tag) == wanted:
+                return url
+    return links.api
 
 
 def ref_to_rst(ref: ET.Element, links: RefLinks | None) -> str | None:
@@ -78,7 +94,8 @@ def ref_to_rst(ref: ET.Element, links: RefLinks | None) -> str | None:
     refid = ref.get("refid", "")
     if not (links and name and refid):
         return None
-    base = links.api if ref.get("external") else links.local
+    external = ref.get("external")
+    base = _tag_base(links, external) if external else links.local
     if not base:
         return None
     if "_1" in refid:
@@ -249,11 +266,17 @@ def section_to_rst(simplesect: ET.Element, links: RefLinks | None = None) -> lis
     return lines
 
 
-def see_to_rst(simplesect_see: ET.Element, api_html_dir: str, testspec_html_dir: str = "") -> str:
+def see_to_rst(
+    simplesect_see: ET.Element,
+    api_html_dir: str,
+    testspec_html_dir: str = "",
+    tag_dirs: Mapping[str, str] | None = None,
+) -> str:
     """Render a <simplesect kind="see"> into a 'See also:' RST line.
     Each <ref> becomes a hyperlink (see `ref_to_rst`), a :c:func: role
-    (unlinked member refs), or a plain code span, depending on its attributes."""
-    links = RefLinks(api=api_html_dir, local=testspec_html_dir)
+    (unlinked member refs), or a plain code span, depending on its attributes.
+    ``tag_dirs``: `RefLinks.tags`."""
+    links = RefLinks(api=api_html_dir, local=testspec_html_dir, tags=tag_dirs)
     refs: list[str] = []
     for ref in simplesect_see.findall("para/ref"):
         name = (ref.text or "").strip()
@@ -342,10 +365,13 @@ def parse_memberdef(
     compound_id: str,
     testspec_html_dir: str,
     api_html_dir: str,
+    tag_dirs: Mapping[str, str] | None = None,
 ) -> MemberInfo:
     """Extract all structured fields from a <memberdef> element — name, source
     location, Doxygen URL, brief description, test ID, requirement refs, status,
-    see-also, and Arrange/Act/Assert body sections — and return them as a MemberInfo."""
+    see-also, and Arrange/Act/Assert body sections — and return them as a MemberInfo.
+
+    ``tag_dirs``: where a tag-file reference links, by tag file (`RefLinks.tags`)."""
     name = memberdef.findtext("name", "").strip()
 
     loc = memberdef.find("location")
@@ -361,7 +387,7 @@ def parse_memberdef(
     anchor = member_id[len(prefix):] if member_id.startswith(prefix) else member_id
     doxygen_url = f"{testspec_html_dir}/{compound_id}.html#{anchor}"
 
-    links = RefLinks(api=api_html_dir, local=testspec_html_dir)
+    links = RefLinks(api=api_html_dir, local=testspec_html_dir, tags=tag_dirs)
     brief = para_text(memberdef.find("briefdescription/para"), links)
 
     dd = memberdef.find("detaileddescription")
@@ -415,7 +441,7 @@ def parse_memberdef(
         detail_lines = detail_rst_lines(dd, links)
         see_sect = dd.find(".//simplesect[@kind='see']")
         if see_sect is not None:
-            see_rst = see_to_rst(see_sect, api_html_dir, testspec_html_dir)
+            see_rst = see_to_rst(see_sect, api_html_dir, testspec_html_dir, tag_dirs)
 
     # Doxygen's native `\verifies` (1.16+), read beside the `@reqref`
     # xrefsects above; both are live while sources migrate. See

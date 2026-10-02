@@ -423,6 +423,7 @@ def configure(
         namespace["testmodule_xml_dir"] = testmodule["xml_dir"]
         namespace["testspec_doxygen_url"] = testmodule["doxygen_url"]
         namespace["api_doxygen_url"] = testmodule["api_url"]
+        namespace["testmodule_tag_urls"] = testmodule.get("tag_urls", {})
         namespace["testspec_needs_json"] = testmodule["needs_json"]
         namespace["testmodule_root"] = str(project_base) if project_base else ""
         namespace["twister_output_dir"] = os.environ.get("ZDOCS_TWISTER_OUT", "")
