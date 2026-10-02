@@ -659,7 +659,7 @@ class Refs:
         #: never a dict of empty strings. A dict with keys ``xml_dir``,
         #: ``doxygen_url``, ``api_url``, ``needs_json`` (each ``""`` when the
         #: corresponding ``testmodule:`` field is absent, e.g. no
-        #: ``api_reference:``).
+        #: ``api_reference:``), and ``tag_urls`` (see `tag_urls`).
         self.testmodule = testmodule
         #: This document's own resolved ``symbol_needs:`` block, or ``None``
         #: when it has none (then the ``symbol_needs`` extension is not
@@ -962,6 +962,7 @@ def load(this_doc=None, registry=None):
             "doxygen_url": rel_urls.get(doxygen_source, "") if doxygen_source else "",
             "api_url": rel_urls.get(api_reference, "") if api_reference else "",
             "needs_json": needs_json,
+            "tag_urls": tag_urls(documents, deploy, rel_urls),
         }
 
     symbol_needs = None
@@ -985,6 +986,35 @@ def load(this_doc=None, registry=None):
         testmodule=testmodule,
         symbol_needs=symbol_needs,
     )
+
+
+def tag_urls(documents, deploy, rel_urls):
+    """``{tag file path: HTML directory URL}`` for every tag file `tagfiles` can name.
+
+    Doxygen marks a reference it resolved through a tag file with
+    ``external="<tag file path>"``, the path exactly as ``TAGFILES`` gave it.
+    This map sends such a reference to the document whose tag file it is:
+    for a ``kind: doxygen`` peer its HTML directory relative to this
+    document's root (``rel_urls``), for a ``kind: doxygen-external`` peer its
+    absolute remote directory, and for a needs tag its Sphinx root.
+    """
+    urls = {}
+    for doc_id, meta in documents.items():
+        kind = meta.get("kind")
+        path = meta.get("path", f"html/{doc_id}")
+        if kind == "doxygen" and doc_id in rel_urls:
+            urls[(deploy / path / DOXYGEN_TAGFILE).as_posix()] = rel_urls[doc_id]
+        elif kind == "doxygen-external":
+            # Without its trailing slash: the reader appends "/<page>".
+            base_dir_url = _intersphinx_target_dir(meta["remote-url"]).rstrip("/")
+            urls[(deploy / path / DOXYGEN_TAGFILE).as_posix()] = base_dir_url
+        elif (
+            kind in (None, "sphinx")
+            and meta.get("doxygen_tag") is not None
+            and doc_id in rel_urls
+        ):
+            urls[(deploy / path / NEEDS_TAGFILE).as_posix()] = rel_urls[doc_id]
+    return urls
 
 
 def tagfiles(this_doc, deploy_dir, registry=None):

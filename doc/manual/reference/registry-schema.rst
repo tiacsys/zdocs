@@ -316,7 +316,10 @@ Each entry in ``documents:``, keyed by its id:
 
    ``api_reference``
       Same existence/kind requirement as ``doxygen_source``, for where
-      ``@see`` cross-references resolve.
+      ``@see`` cross-references resolve. A symbol Doxygen resolved through
+      another document's tag file links into that document instead (Doxygen
+      records the tag file on the reference); ``api_reference`` takes only
+      the references no registry document's tag file accounts for.
 
    ``spec``
       Id of the sphinx document whose exported needs a ``testreport`` document
