@@ -65,6 +65,14 @@ Re-reads a document when an input from outside the source tree changes.
 .. automodule:: input_tracking
    :members:
 
+``needs_config_state``
+------------------------
+
+Re-reads a document when its sphinx-needs TOML file changes.
+
+.. automodule:: needs_config_state
+   :members:
+
 ``needs_fields``
 ------------------
 

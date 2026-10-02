@@ -125,6 +125,10 @@ def configure(
         # conditional extension list would make the two build stages' configs
         # differ and invalidate the doctree cache between them.
         "sphinx_needs",
+        # Re-reads the document when the needs TOML's content changes:
+        # sphinx-needs rebuilds only the HTML when its types, links or fields
+        # change, and an incremental build then crashes on a new link type.
+        "needs_config_state",
         # The `doc_control` directive: the controlled-document header (owner,
         # classification, approval dates, version). Registers `signature_section`
         # and `releaselevel` as config values, so it must be loaded even by
