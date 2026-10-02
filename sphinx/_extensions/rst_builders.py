@@ -23,6 +23,8 @@ __all__ = [
     "build_result_rst",
     "build_symbol_need_rst",
     "build_scenario_table",
+    "SCENARIO_YAML_NAMES",
+    "find_scenario_yaml",
 ]
 
 logger = logging.getLogger(__name__)
@@ -392,8 +394,32 @@ def build_symbol_need_rst(info, need_names=None, depends_field=False):
     return "\n".join(lines)
 
 
+# The names that twister reads for the scenarios of a test directory, in
+# twister's order (scripts/pylib/twister/twisterlib/testplan.py). Newer Zephyr
+# trees name the file tests.yaml, older ones testcase.yaml.
+SCENARIO_YAML_NAMES = ("testcase.yaml", "tests.yaml", "sample.yaml")
+
+
+def find_scenario_yaml(module_dir):
+    """Return the first scenario file in ``module_dir`` that exists, or None.
+
+    The names come from ``SCENARIO_YAML_NAMES``. When no file exists, log a
+    warning that names each file it tried.
+    """
+    module_dir = Path(module_dir)
+    for name in SCENARIO_YAML_NAMES:
+        path = module_dir / name
+        if path.is_file():
+            return path
+    logger.warning(
+        f"testmodule: no scenario file in {module_dir} "
+        f"(tried {', '.join(SCENARIO_YAML_NAMES)})"
+    )
+    return None
+
+
 def build_scenario_table(testcase_yaml_path):
-    """Return RST lines for a list-table of scenarios from testcase.yaml."""
+    """Return RST lines for a list-table of scenarios from a scenario file."""
     try:
         with open(testcase_yaml_path) as f:
             data = yaml.safe_load(f)
