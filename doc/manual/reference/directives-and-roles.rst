@@ -283,6 +283,105 @@ field and a warning instead.
        ...
    }
 
+``.. testcoverage::``
+----------------------
+
+One ``adequacy`` need per requirement that a per-test coverage run can assess.
+The verdict says if the requirement's own verifying tests run the code that
+satisfies it. ``test_module`` loads the directive.
+
+.. code-block:: rst
+
+   .. testcoverage::
+      :run: nightly-cov
+      :layout: adequacy
+
+The optional argument is the run directory. Without it, the directive reads
+``ZDOCS_COVERAGE_OUT`` (:doc:`consumer-contract`). The run directory holds
+``twister.json``, ``coverage/test_matrix.json`` and ``zephyr.sha``. The
+``:run:`` option names the run in the need ids. Without it, the name is the
+first tag (sorted) on the run commit. If the commit has no tag, the name is
+the name of the run directory. The ``:layout:`` option sets the sphinx-needs
+layout of each need.
+
+The directive joins these inputs:
+
+* The requirement's verifying test cases, through the ``verifies`` link of
+  the case needs.
+* The requirement's satisfying symbols, through the ``satisfies`` link of the
+  implementation needs (``IMPL-<symbol>``, see ``symbolneeds``).
+* The test cases that the run ran. Each twister case goes to its spec case
+  by (suite, function), as a test result does. Its matrix key is built from
+  the scenario and the C function name (``kernel.lifo.usage`` +
+  ``test_x`` gives ``kernel_lifo_usage_test_x``). The directive does not parse
+  keys, because scenario names are prefixes of other scenario names.
+* The needs come from ``needs_external_needs`` and ``testspec_needs_json``.
+
+The directive finds the bodies of each symbol in the sources of the run
+commit (``git show <sha>:<path>`` in ``testmodule_root``). The commit comes
+from ``zephyr.sha``, else from the ``-g<hash>`` of
+``environment.zephyr_version`` in ``twister.json``. If the commit is not in
+the tree, the directive reads the working tree and warns. A body is
+``z_impl_<symbol>``, ``z_vrfy_<symbol>`` (the verifier that a user-mode test
+reaches), a plain definition, or a header ``static inline``. A macro has no
+body.
+
+The verdicts:
+
+``true``
+   The own tests run every symbol that coverage can judge.
+``partial``
+   The own tests run some of these symbols, not all.
+``broken``
+   Other tests of the run reach the code. The own tests never do.
+``unattributed``
+   No test of the run covers any body. Coverage cannot judge the link.
+``unresolved``
+   No satisfying symbol maps to a body (a macro).
+``no-cov``
+   The verifying tests have no coverage data in the run.
+``no-impl``
+   No symbol satisfies the requirement.
+
+The directive assesses a requirement if the run ran at least one of its
+verifying test cases. It renders a summary of the run, a table of the
+verdicts, and one section per verdict. Each need lists its symbols and
+bodies. For each body, it gives the lines that each own test ran, and the
+other tests that ran the body.
+
+The id of a need is ``ADQ-<run>/<requirement>``. ``testcoverage_id_prefix``
+sets the prefix. The type, the link and the fields are roles, as for the other
+directives:
+
+.. code-block:: python
+
+   testcoverage_need_types = {"adequacy": "adequacy"}  # defaults
+   testcoverage_need_links = {"assesses": "assesses"}
+   testcoverage_need_fields = {
+       "verdict": "verdict", "evidence": "evidence", "coverage_run": "coverage_run",
+       "judged_symbols": "judged_symbols", "symbol_hits": "symbol_hits",
+   }
+
+Declare the type and the link in your ``needs_config.toml``. The directive
+sets a field only if your ``needs_config.toml`` declares it (string fields).
+The body of the need always shows the same information. The fields:
+
+``verdict``
+   One of the verdicts above.
+``evidence``
+   The state of the verifying tests in the coverage run: ``passing``,
+   ``failing``, ``skipped``, ``no-run`` or ``untested``.
+``coverage_run``
+   The name of the run.
+``judged_symbols``
+   The satisfying symbols, joined with ``"; "``.
+``symbol_hits``
+   Per symbol, the body lines that the own tests ran and that any test ran
+   (``k_sem_init: own 11, any 11``).
+
+A parameterized test (``ZTEST_P``) has one matrix key for all its values: the
+per-test dump of Zephyr has no value in its tag.
+
 ``.. symbolneeds::``
 --------------------
 

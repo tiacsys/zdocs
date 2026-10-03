@@ -41,6 +41,11 @@ Two fields were later made roles too: a test result's ``depends_met`` and
 review filters and reports by, not a record of what twister wrote, so a
 consumer names them like the types and links.
 
+The fields of an adequacy need (``testcoverage_need_fields``: ``verdict``,
+``evidence``, ``coverage_run``, ``judged_symbols``, ``symbol_hits``) are roles
+for the same reason. The ``adequacy`` type and the ``assesses`` link are roles
+like the other types and links.
+
 Consequences
 ------------
 

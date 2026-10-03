@@ -18,6 +18,7 @@ from pathlib import Path
 from rst_builders import _need_name, _values_summary
 
 __all__ = [
+    "split_case_name",
     "parse_twister_results",
     "normalise_test_path",
     "scenario_selected",
@@ -100,6 +101,29 @@ def scenario_selected(
     return True
 
 
+def split_case_name(name, scenario):
+    """``(suite, function, instance)`` of twister test case ``name`` in ``scenario``.
+
+    Twister names a case ``<scenario>.<suite>.<fn>``, with ztest's ``test_``
+    stripped from ``fn`` (and so from ``function`` here). A parameterized test
+    (ZTEST_P) reports one case per value as ``<scenario>.<fn>[<instantiation>/
+    <value>]``: no suite segment (``suite`` is ``""``), and the value may
+    contain anything, dots included, so it is split off before the name is.
+    ``instance`` is the part in brackets, or ``None``.
+    """
+    base, instance = name, None
+    if name.endswith("]") and "[" in name:
+        cut = name.index("[")
+        base, instance = name[:cut], name[cut + 1 : -1]
+    suffix = base[len(scenario) + 1 :] if base.startswith(scenario + ".") else base
+    parts = suffix.rsplit(".", 1)
+    suite = parts[0] if len(parts) == 2 else ""
+    function = parts[-1]
+    if function.startswith("test_"):
+        function = function[5:]
+    return suite, function, instance
+
+
 def parse_twister_results(
     xml_path, module_filter=None, exact=False, path_filter=None, suite_paths=None
 ):
@@ -121,20 +145,7 @@ def parse_twister_results(
                 continue
             name = tc.get("name", "")
             scenario = classname
-            # A parameterized test (ZTEST_P) reports one result per value as
-            # `<scenario>.<fn>[<instantiation>/<value>]`: no suite segment, and
-            # the value may contain anything, dots included, so it is split
-            # off before the name is.
-            base, instance = name, None
-            if name.endswith("]") and "[" in name:
-                cut = name.index("[")
-                base, instance = name[:cut], name[cut + 1 : -1]
-            suffix = base[len(scenario) + 1 :] if base.startswith(scenario + ".") else base
-            parts = suffix.rsplit(".", 1)
-            suite = parts[0] if len(parts) == 2 else ""
-            function = parts[-1]
-            if function.startswith("test_"):
-                function = function[5:]
+            suite, function, instance = split_case_name(name, scenario)
             failure = tc.find("failure")
             error = tc.find("error")
             skipped = tc.find("skipped")

@@ -49,6 +49,14 @@ directives.
 .. automodule:: test_module
    :members:
 
+``test_coverage``
+-------------------
+
+The ``.. testcoverage::`` directive. ``test_module`` loads it.
+
+.. automodule:: test_coverage
+   :members:
+
 ``symbol_needs``
 ------------------
 
@@ -113,6 +121,14 @@ Twister output parsing, with no Sphinx dependency of its own.
 .. automodule:: twister_reader
    :members:
    :exclude-members: parse_twister_results
+
+``adequacy``
+--------------
+
+Coverage adequacy, with no Sphinx dependency of its own.
+
+.. automodule:: adequacy
+   :members:
 
 ..
    parse_twister_results is excluded: its docstring's own example text,
