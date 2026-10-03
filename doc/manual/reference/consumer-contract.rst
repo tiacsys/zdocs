@@ -167,6 +167,17 @@ from outside your ``CMakeLists.txt``.
    the build still succeeds — a documentation build legitimately outrunning
    its test run is normal.
 
+``ZDOCS_COVERAGE_OUT``
+   Default empty. The directory of a per-test coverage run
+   (``west twister --coverage-per-test``), read by the ``testcoverage``
+   directive (:doc:`directives-and-roles`). The directive reads three files
+   from it: ``twister.json``, ``coverage/test_matrix.json`` and ``zephyr.sha``
+   (the run commit). It is not the run of ``ZDOCS_TWISTER_OUT``: a coverage
+   run builds with instrumentation, usually on one board. The wiring is the
+   same as for ``ZDOCS_TWISTER_OUT``: CMake passes it only when it is not
+   empty, and ``zdocs_conf.py`` reads it as ``coverage_output_dir``. If it is
+   unset, the directive renders "no coverage run configured" and does not warn.
+
 ``ZDOCS_LATEXOPTS``
    Default ``"-interaction=nonstopmode -halt-on-error"``. Passed to ``xelatex``
    through the ``latexmk``-generated ``latexmkrc``. Changing this is rarely

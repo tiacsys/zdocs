@@ -908,4 +908,6 @@ def setup(app):
     app.add_directive("testreport", TestReportDirective)
     app.add_directive("twisterinfo", TwisterInfoDirective)
     app.setup_extension("input_tracking")
+    # The testcoverage directive: coverage adequacy beside the test results.
+    app.setup_extension("test_coverage")
     return {"version": "0.2", "parallel_read_safe": True}

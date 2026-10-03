@@ -49,6 +49,12 @@ set(
   CACHE STRING
   "Directory holding twister's own output (twister.json, twister_report.xml, per-scenario handler.log) for the testreport/twisterinfo directives"
 )
+set(
+  ZDOCS_COVERAGE_OUT
+  ""
+  CACHE STRING
+  "Directory of a per-test coverage run (twister.json, coverage/test_matrix.json, zephyr.sha) for the testcoverage directive"
+)
 separate_arguments(ZDOCS_SPHINXOPTS)
 separate_arguments(ZDOCS_SPHINXOPTS_EXTRA)
 
@@ -224,6 +230,9 @@ function(add_sphinx_target doc_name)
   )
   if(NOT ZDOCS_TWISTER_OUT STREQUAL "")
     list(APPEND SPHINX_ENV ZDOCS_TWISTER_OUT=${ZDOCS_TWISTER_OUT})
+  endif()
+  if(NOT ZDOCS_COVERAGE_OUT STREQUAL "")
+    list(APPEND SPHINX_ENV ZDOCS_COVERAGE_OUT=${ZDOCS_COVERAGE_OUT})
   endif()
   # The Zephyr that find_package(Zephyr) found. zdocs_conf loads Zephyr's doc
   # extensions from it, including external_content, which stages the sources

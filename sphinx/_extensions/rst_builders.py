@@ -52,6 +52,15 @@ _DEFAULT_NEED_NAMES = {
     # depends_on, and why a skipped result was skipped.
     "depends_met": "depends_met",
     "skip_class": "skip_class",
+    # testcoverage: one adequacy need per requirement and coverage run, its
+    # link to the requirement, and its fields (`testcoverage_need_*`).
+    "adequacy": "adequacy",
+    "assesses": "assesses",
+    "verdict": "verdict",
+    "evidence": "evidence",
+    "coverage_run": "coverage_run",
+    "judged_symbols": "judged_symbols",
+    "symbol_hits": "symbol_hits",
 }
 
 #: The result-field roles `build_result_rst` can set (see its ``fields``).

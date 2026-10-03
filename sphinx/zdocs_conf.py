@@ -427,6 +427,7 @@ def configure(
         namespace["testspec_needs_json"] = testmodule["needs_json"]
         namespace["testmodule_root"] = str(project_base) if project_base else ""
         namespace["twister_output_dir"] = os.environ.get("ZDOCS_TWISTER_OUT", "")
+        namespace["coverage_output_dir"] = os.environ.get("ZDOCS_COVERAGE_OUT", "")
         namespace["twisterinfo_project_name"] = project
         namespace["twisterinfo_project_version"] = version
     if symbol_needs is not None:
