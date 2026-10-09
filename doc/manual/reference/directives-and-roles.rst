@@ -456,23 +456,57 @@ stage-2 build (the XML cannot tell, since Doxygen writes a
 unknown requirement" warning fails the Doxygen document through
 ``ZDOCS_DOXYGEN_WARN_FAIL_PATTERNS`` (:doc:`consumer-contract`).
 
+.. _need-layouts:
+
 Need layouts
 ------------
 
 Not a directive: helpers for a document's ``conf.py``, which it imports from
-``zdocs_conf``. sphinx-needs shows all incoming links of a need. A requirement
-can have hundreds of test results that cover it, and this list hides the rest
-of the need. Source: :external+zdocs-api:py:mod:`need_layouts`.
+``zdocs_conf``. Source: :external+zdocs-api:py:mod:`need_layouts`.
 
-``need_layout()`` gives the sphinx-needs ``clean`` layout. ``hide_backlinks``
-names the links whose incoming side the layout does not show:
+``need_layout()`` gives the zdocs need card: a head with the type, the ID, a
+pill and the title; then the text of the need; then its fields and links.
+``zdocs-needs.css`` styles a need whose layout name starts with ``zdocs``, so
+give the layout such a name:
 
 .. code-block:: python
 
    from zdocs_conf import configure, need_layout
 
-   needs_layouts = {"requirement": need_layout(hide_backlinks=["covers"])}
-   needs_default_layout = "requirement"
+   needs_layouts = {
+       "zdocs_requirement": need_layout(
+           fields=[("rtype", "Kind"), ("component", "Component")],
+           hide_backlinks=["covers"],
+       ),
+   }
+   needs_default_layout = "zdocs_requirement"
+
+``fields``
+   ``(name, label)`` pairs, in the order to show. A field without a value
+   shows no row. Without ``fields``, the card shows every field that has a
+   value, under its own name; ``fields=[]`` shows the links only. A label is
+   plain words.
+``hide_backlinks``
+   The links whose incoming side the card does not show. A requirement can
+   have hundreds of test results that cover it, and that list hides the rest
+   of the need.
+``pill``
+   The field that the head shows as a pill: ``status`` (the default), or
+   ``verdict`` for an adequacy need. The pill of a test result status and of
+   a verdict has the color of its value.
+
+The rows stay in the sphinx-needs order (head, fields, text) in the HTML; the
+CSS shows the text before the fields. So the PDF and a screen reader still
+give the fields first.
+
+The ``need_cards`` extension (loaded by ``zdocs_conf``) gives each card the
+``color`` of its need type in ``needs_config.toml`` as the accent, and the
+class ``zd-status-<status>`` / ``zd-verdict-<verdict>`` that colors the pill.
+A type without a color stays grey.
+
+The engine puts the references of a generated need (Depends on, Source, See
+also, Declared in) in a ``need-refs`` container: the card shows them as one
+block under the text.
 
 A document with its own layout uses ``links_line()`` in place of
 ``<<meta_links_all()>>``:

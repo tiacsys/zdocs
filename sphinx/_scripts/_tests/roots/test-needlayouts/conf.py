@@ -27,8 +27,8 @@ needs_build_json = True
 suppress_warnings = ["config.cache"]
 
 needs_layouts = {
-    # The engine's layout, without the incoming "covered by" links.
-    "slim": need_layout(hide_backlinks=["covers"]),
+    # The engine's card, without the incoming "covered by" links.
+    "zdocs_slim": need_layout(fields=[("status", "State")], hide_backlinks=["covers"]),
     # A document's own layout, with the engine's links line in it.
     "own": {
         "grid": "simple",
@@ -41,4 +41,4 @@ needs_layouts = {
         },
     },
 }
-needs_default_layout = "slim"
+needs_default_layout = "zdocs_slim"
