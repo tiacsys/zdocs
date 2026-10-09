@@ -220,7 +220,7 @@ def _needs():
         needs[f"IMPL-{sym}"] = {"id": f"IMPL-{sym}", "type": "impl", "title": sym,
                                 "satisfies": reqs}
     for r in REQS:
-        needs[r] = {"id": r, "type": "req", "title": r}
+        needs[r] = {"id": r, "type": "req", "title": f"Title of {r}"}
     return {"current_version": "1.0", "versions": {"1.0": {"needs": needs}}}
 
 
@@ -472,7 +472,85 @@ def test_adequacy_rst_sets_the_declared_fields_under_the_consumers_names(tree):
     assert ":layout:" not in rst
     with_layout = tc.build_adequacy_rst("R-VRFY", results["R-VRFY"], run, names, (), "Q", "adq")
     assert "   :layout: adq" in with_layout and "   :id: Q-cov-run/R-VRFY" in with_layout
-    assert f"own :need:`TSPEC-1`: lines {VRFY[0]}-{VRFY[0] + 2}" in rst
+    titled = tc.build_adequacy_rst("R-VRFY", results["R-VRFY"], run, names, title="Obj init")
+    assert titled[0] == ".. judgement:: Obj init"
+
+
+def test_adequacy_rst_shows_the_undeclared_fields_in_the_body(tree):
+    run, results, _, _ = _assess(tree)
+    rst = "\n".join(tc.build_adequacy_rst("R-DEF", results["R-DEF"], run, fields={"verdict"}))
+    assert "      **Verifying tests:** :need:`TSPEC-3`" in rst
+    assert "**Verdict:**" not in rst
+    assert "      **Evidence:** passing" in rst
+    assert "      **Coverage run:** cov-run" in rst
+    every = set(tc.ADEQUACY_FIELD_ROLES)
+    rst = "\n".join(tc.build_adequacy_rst("R-DEF", results["R-DEF"], run, fields=every))
+    assert "**Evidence:**" not in rst and "**Coverage run:**" not in rst
+
+
+def test_adequacy_rst_gives_one_row_per_body(tree):
+    run, results, _, _ = _assess(tree)
+    rst = "\n".join(tc.build_adequacy_rst("R-VRFY", results["R-VRFY"], run))
+    # The function whose body was read, its form and place, the own lines of
+    # the lines any test ran, and the other test cases.
+    assert "      * - ``z_impl_k_obj_init``" in rst
+    assert f":zd-adq-loc:`implementation, kernel/obj.c:{IMPL[0]}-{IMPL[1]}`" in rst
+    assert ":zd-adq-none:`no test ran it`" in rst
+    assert "      * - ``z_vrfy_k_obj_init``" in rst
+    assert ":zd-adq-ok:`3 of 3 lines`" in rst
+    # The own tests run every body they should: no list of other tests.
+    assert "Other tests that run" not in rst
+
+
+def test_adequacy_rst_names_the_other_tests_of_a_missed_body(tree):
+    run, results, _, _ = _assess(tree)
+    rst = "\n".join(tc.build_adequacy_rst("R-BROKEN", results["R-BROKEN"], run))
+    assert f":zd-adq-miss:`0 of {len(_span(PLAIN))} lines`" in rst
+    assert "        - 3 test cases" in rst
+    assert "   Other tests that run ``k_plain``:" in rst
+    # One group per set of lines. Groups of one size go by their first case.
+    a, b = PLAIN
+    assert (f"   * lines {a}-{b}: :need:`TSPEC-3`\n"
+            f"   * lines {a}, {a + 2}: :need:`TSPEC-8`\n"
+            f"   * lines {a + 2}: :need:`TSPEC-10`") in rst
+
+
+def test_adequacy_rst_without_a_body_has_no_table(tree):
+    run, results, _, _ = _assess(tree)
+    for req in ("R-MACRO", "R-NOIMPL"):
+        rst = "\n".join(tc.build_adequacy_rst(req, results[req], run))
+        assert "list-table" not in rst
+
+
+@pytest.mark.parametrize("req, sentence", [
+    ("R-VRFY", "The own tests run the satisfying symbol."),
+    ("R-PARTIAL", "The own tests run 1 of the 2 symbols that coverage can judge. "
+                  "Only other tests run ``k_inline``."),
+    ("R-BROKEN", "Only other tests run ``k_plain``. The own tests never do."),
+    ("R-UNATTR", "No test of the run runs a body of the satisfying symbols. "
+                 "Coverage cannot judge the link."),
+    ("R-MACRO", "``k_macro`` has no function body in the files that the directive searched."),
+    ("R-NOIMPL", "No symbol satisfies this requirement."),
+    ("R-NOCOV", "The run has no coverage data for the own tests."),
+])
+def test_the_summary_says_why(tree, req, sentence):
+    _, results, _, _ = _assess(tree)
+    assert tc.adequacy_summary(results[req]) == sentence
+
+
+def test_the_summary_of_true_names_the_symbols_that_coverage_cannot_judge():
+    def body(sym, own, any_):
+        return {"sym": sym, "file": "k.c", "own": own, "any": any_}
+    two = {"verdict": "true", "impls": [body("a", 1, 1), body("b", 2, 2)]}
+    assert tc.adequacy_summary(two) == "The own tests run both satisfying symbols."
+    three = {"verdict": "true", "impls": [body("a", 1, 1), body("b", 1, 1), body("c", 1, 1)]}
+    assert tc.adequacy_summary(three) == "The own tests run all 3 satisfying symbols."
+    unjudged = {"verdict": "true", "impls": [body("a", 1, 1), body("b", 0, 0),
+                                             {"sym": "M", "file": None, "own": 0, "any": 0}]}
+    assert tc.adequacy_summary(unjudged) == (
+        "The own tests run the one symbol that coverage can judge. "
+        "Coverage cannot judge ``b`` and ``M``."
+    )
 
 
 _CONF = """\
@@ -523,10 +601,12 @@ def test_directive_emits_one_adequacy_need_per_requirement(tree, make_app, tmp_p
     assert five["assesses"] == ["R-PARTIAL"]
     assert five["judged_symbols"] == "k_inline; k_plain"
     assert five["coverage_run"] == "cov-run"
+    assert five["title"] == "Title of R-PARTIAL"  # the requirement's title
     log = app._warning.getvalue()
     assert "WARNING" not in log, log
     html = (Path(app.outdir) / "index.html").read_text()
     assert "Verdict broken" in html and 'id="ADQ-cov-run/R-VRFY"' in html
+    assert '<span class="zd-adq-miss">' in html
 
 
 def test_directive_reads_the_consumers_file_set(tree, make_app, tmp_path):

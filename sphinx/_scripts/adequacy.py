@@ -79,6 +79,7 @@ __all__ = [
     "CoverageRun",
     "load_coverage_run",
     "collect_links",
+    "need_titles",
     "evidence",
     "adequacy",
     "assess",
@@ -500,6 +501,16 @@ def collect_links(json_paths, need_names=None):
             for req in need.get(satisfies, []) or []:
                 satisfied_by[req].append(nid[len(impl_prefix):])
     return SpecLookup(entries), dict(verified_by), dict(satisfied_by), set(seen)
+
+
+def need_titles(json_paths):
+    """``{need id: title}`` of the needs in the needs.json files (the first file wins)."""
+    titles = {}
+    for path in json_paths:
+        for nid, need in _needs_of(path).items():
+            if need.get("title"):
+                titles.setdefault(nid, need["title"])
+    return titles
 
 
 # --- verdicts --------------------------------------------------------------------------
