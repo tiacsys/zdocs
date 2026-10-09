@@ -51,6 +51,7 @@ if _zephyr_base:
 
 import docrefs  # noqa: E402  (needs the sys.path above)
 from doc_control import latex_escape  # noqa: E402  (same)
+from need_layouts import links_line, need_layout  # noqa: E402,F401  (for conf.py)
 
 #: Defines the macro ``doc_control`` emits for the PDF-only sign-off block.
 #:

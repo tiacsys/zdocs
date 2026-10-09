@@ -456,6 +456,42 @@ stage-2 build (the XML cannot tell, since Doxygen writes a
 unknown requirement" warning fails the Doxygen document through
 ``ZDOCS_DOXYGEN_WARN_FAIL_PATTERNS`` (:doc:`consumer-contract`).
 
+Need layouts
+------------
+
+Not a directive: helpers for a document's ``conf.py``, which it imports from
+``zdocs_conf``. sphinx-needs shows all incoming links of a need. A requirement
+can have hundreds of test results that cover it, and this list hides the rest
+of the need. Source: :external+zdocs-api:py:mod:`need_layouts`.
+
+``need_layout()`` gives the sphinx-needs ``clean`` layout. ``hide_backlinks``
+names the links whose incoming side the layout does not show:
+
+.. code-block:: python
+
+   from zdocs_conf import configure, need_layout
+
+   needs_layouts = {"requirement": need_layout(hide_backlinks=["covers"])}
+   needs_default_layout = "requirement"
+
+A document with its own layout uses ``links_line()`` in place of
+``<<meta_links_all()>>``:
+
+.. code-block:: python
+
+   from zdocs_conf import configure, links_line
+
+   "meta": [
+       '<<meta("status", prefix="\\*\\*status:\\*\\* ")>>',
+       links_line(["result_of"]),
+   ],
+
+Use the link name from ``needs_config.toml`` (``covers``), not its
+``incoming`` title (``covered by``). A name with a space or a quote is an
+error. A name that is no link type of the document is not an error, but it
+hides nothing. The outgoing side of the link stays. The links also stay in the
+need data, so ``needs.json``, need tables and need flows still show them.
+
 Doxylink prefixes
 -----------------
 

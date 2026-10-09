@@ -13,6 +13,14 @@ Which optional need fields a consumer declared.
 .. automodule:: needs_fields
    :members:
 
+``need_layouts``
+------------------
+
+Need layouts that a document's ``conf.py`` gets from the engine.
+
+.. automodule:: need_layouts
+   :members:
+
 ``doxygen_parser``
 --------------------
 
