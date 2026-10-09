@@ -366,9 +366,25 @@ The verdicts:
 
 The directive assesses a requirement if the run ran at least one of its
 verifying test cases. It renders a summary of the run, a table of the
-verdicts, and one section per verdict. Each need lists its symbols and
-bodies. For each body, it gives the lines that each own test ran, and the
-other tests that ran the body.
+verdicts, and one section per verdict. A need has the title of its
+requirement. Its body has:
+
+* One sentence that says why the verdict is what it is ("The own tests run 1
+  of the 2 symbols that coverage can judge. Only other tests run
+  ``k_inline``.").
+* A table with one row per body: the function (``z_vrfy_k_sem_give``), its
+  form and place, the lines that the own tests ran of the lines that any test
+  of the run ran, and the number of other test cases that ran it. A
+  requirement with no body (``unresolved``, ``no-impl``) has no table.
+* For each body that the own tests never run, the other tests that do: the
+  places where a ``@verifies`` can go. A test case is named once. The test
+  cases that ran the same lines are one group.
+* The verifying tests, and the fields that the consumer does not declare
+  (``verdict``, ``evidence``, ``coverage_run``).
+
+The table cells use the roles ``zd-adq-ok``, ``zd-adq-miss``, ``zd-adq-none``
+and ``zd-adq-loc``. Each gives the text a class of the same name. The zdocs
+need card (:ref:`need-layouts`) colors them.
 
 The id of a need is ``ADQ-<run>/<requirement>``. ``testcoverage_id_prefix``
 sets the prefix. The type, the link and the fields are roles, as for the other
@@ -385,7 +401,8 @@ directives:
 
 Declare the type and the link in your ``needs_config.toml``. The directive
 sets a field only if your ``needs_config.toml`` declares it (string fields).
-The body of the need always shows the same information. The fields:
+The body shows the verdict, the evidence and the run when they are not
+fields. The fields:
 
 ``verdict``
    One of the verdicts above.

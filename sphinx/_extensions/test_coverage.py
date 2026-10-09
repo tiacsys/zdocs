@@ -22,6 +22,7 @@ from adequacy import (
     collect_links,
     line_ranges,
     load_coverage_run,
+    need_titles,
 )
 from docutils import nodes
 from docutils.parsers.rst import Directive, directives
@@ -48,8 +49,21 @@ VERDICT_MEANING = {
     "true": "The own tests run every symbol that coverage can judge.",
 }
 
-#: At most this many other tests are named for one body.
+#: At most this many test cases are named for one group of other tests.
 _OTHER_TESTS_SHOWN = 10
+
+#: The function whose body the directive reads, by body form.
+_BODY_NAME = {"impl": "z_impl_{}", "vrfy": "z_vrfy_{}", "def": "{}", "inline": "{}"}
+_BODY_FORM = {"impl": "implementation", "vrfy": "verifier", "def": "definition",
+              "inline": "static inline"}
+
+#: The roles of the body table cells: each gives an inline node with the
+#: role name as its class, for ``zdocs-needs.css``.
+CELL_ROLES = ("zd-adq-ok", "zd-adq-miss", "zd-adq-none", "zd-adq-loc")
+
+#: The engine fields that the body shows when the consumer does not declare them.
+_BODY_FALLBACK = (("verdict", "Verdict"), ("evidence", "Evidence"),
+                  ("coverage_run", "Coverage run"))
 
 
 def _need_names(config):
@@ -73,12 +87,6 @@ def _natural(uid):
     return [int(t) if t.isdigit() else t for t in re.split(r"(\d+)", uid)]
 
 
-def _need_ref(key, run):
-    """A matrix key as the case needs it stands for, else as a literal."""
-    cases = sorted(run.case_of_key.get(key, ()))
-    return ", ".join(f":need:`{c}`" for c in cases) if cases else f"``{key}``"
-
-
 def _symbol_hits(impls):
     """``"k_sem_init: own 11, any 11"`` per symbol, joined with ``"; "``."""
     own, any_, order = Counter(), Counter(), []
@@ -90,10 +98,98 @@ def _symbol_hits(impls):
     return "; ".join(f"{s}: own {own[s]}, any {any_[s]}" for s in order)
 
 
-def build_adequacy_rst(req, res, run, need_names=None, fields=(), prefix="ADQ", layout=""):
+def _code_list(names):
+    """```a``, ``b`` and ``c```."""
+    names = [f"``{n}``" for n in names]
+    return names[0] if len(names) == 1 else ", ".join(names[:-1]) + " and " + names[-1]
+
+
+def _symbol_states(impls):
+    """``{symbol: (has a body, a test of the run ran it, an own test ran it)}``."""
+    states = {}
+    for d in impls:
+        body, seen, hit = states.get(d["sym"], (False, False, False))
+        states[d["sym"]] = (body or d["file"] is not None, seen or d["any"] > 0,
+                            hit or d["own"] > 0)
+    return states
+
+
+def adequacy_summary(res):
+    """One sentence (RST) that says why the verdict of ``res`` is what it is."""
+    verdict = res["verdict"]
+    states = _symbol_states(res["impls"])
+    judged = [s for s, (_, seen, _) in states.items() if seen]
+    missed = [s for s in judged if not states[s][2]]
+    not_judged = [s for s in states if s not in judged]
+    if verdict == "no-impl":
+        return "No symbol satisfies this requirement."
+    if verdict == "unresolved":
+        verb = "has" if len(states) == 1 else "have"
+        return (f"{_code_list(list(states))} {verb} no function body in the files "
+                f"that the directive searched.")
+    if verdict == "no-cov":
+        return "The run has no coverage data for the own tests."
+    if verdict == "unattributed":
+        return ("No test of the run runs a body of the satisfying symbols. Coverage "
+                "cannot judge the link.")
+    if verdict == "partial":
+        return (f"The own tests run {len(judged) - len(missed)} of the {len(judged)} "
+                f"symbols that coverage can judge. Only other tests run "
+                f"{_code_list(missed)}.")
+    if verdict == "broken":
+        return f"Only other tests run {_code_list(missed)}. The own tests never do."
+    # true
+    if not not_judged:
+        return {1: "The own tests run the satisfying symbol.",
+                2: "The own tests run both satisfying symbols."}.get(
+            len(judged), f"The own tests run all {len(judged)} satisfying symbols.")
+    what = "the one symbol" if len(judged) == 1 else f"all {len(judged)} symbols"
+    return (f"The own tests run {what} that coverage can judge. Coverage cannot "
+            f"judge {_code_list(not_judged)}.")
+
+
+def _own_cell(d):
+    if d["any"] == 0:
+        return ":zd-adq-none:`no test ran it`"
+    role = "zd-adq-ok" if d["own"] else "zd-adq-miss"
+    return f":{role}:`{d['own']} of {d['any']} lines`"
+
+
+def _other_groups(d, run):
+    """The other tests of body ``d`` as ``[(line ranges, [case refs])]``.
+
+    A case once, however many matrix keys it has; a key that no spec case has
+    stays a literal. The cases that ran the same lines form one group: the
+    largest group first, then by the first case.
+    """
+    groups = {}
+    for key, hit in d["other_tests"].items():
+        refs = groups.setdefault(line_ranges(hit), [])
+        for case in sorted(run.case_of_key.get(key, ())) or [None]:
+            ref = f":need:`{case}`" if case else f"``{key}``"
+            if ref not in refs:
+                refs.append(ref)
+    groups = [(r, sorted(c, key=_natural)) for r, c in groups.items()]
+    return sorted(groups, key=lambda g: (-len(g[1]), _natural(g[1][0])))
+
+
+def _other_count(d, run):
+    return len({c for key in d["other_tests"] for c in run.case_of_key.get(key, ()) or [key]})
+
+
+def build_adequacy_rst(req, res, run, need_names=None, fields=(), prefix="ADQ", layout="",
+                       title=None):
     """RST lines for the adequacy need of ``req`` (``res`` from `adequacy.assess`).
 
-    ``layout``: the sphinx-needs layout of the need, if not empty.
+    ``layout``: the sphinx-needs layout of the need, if not empty. ``title``:
+    the title of the requirement; the need has it as its own title. Without it,
+    the title is ``Adequacy of <req>``.
+
+    The body says why the verdict is what it is. A table gives each body of a
+    satisfying symbol: the lines that the own tests ran, of the lines that any
+    test of the run ran, and the number of other test cases that ran it. For
+    a body that the own tests never run, the body names the other tests that
+    do. A field that the consumer does not declare is in the body too.
     """
     values = {
         "verdict": res["verdict"],
@@ -103,7 +199,7 @@ def build_adequacy_rst(req, res, run, need_names=None, fields=(), prefix="ADQ", 
         "symbol_hits": _symbol_hits(res["impls"]),
     }
     lines = [
-        f".. {_need_name(need_names, 'adequacy')}:: Adequacy of {req}",
+        f".. {_need_name(need_names, 'adequacy')}:: {title or f'Adequacy of {req}'}",
         f"   :id: {adequacy_need_id(run.name, req, prefix)}",
         f"   :{_need_name(need_names, 'assesses')}: {req}",
     ]
@@ -112,60 +208,61 @@ def build_adequacy_rst(req, res, run, need_names=None, fields=(), prefix="ADQ", 
             lines.append(f"   :{_need_name(need_names, role)}: {values[role]}")
     if layout:
         lines.append(f"   :layout: {layout}")
-    lines += [
-        "",
-        f"   Verdict ``{res['verdict']}``, evidence ``{res['evidence']}``, "
-        f"coverage run ``{run.name}``.",
-        "",
-    ]
-    cases = ", ".join(f":need:`{c}`" for c in res["cases"])
-    lines += [f"   Verifying test cases: {cases}.", ""]
-    if not res["impls"]:
-        lines += ["   No symbol satisfies this requirement.", ""]
-        return lines
-    lines += [
-        "   .. list-table:: Satisfying symbols",
-        "      :header-rows: 1",
-        "      :widths: 20 10 30 10 10",
-        "",
-        "      * - Symbol",
-        "        - Body",
-        "        - Location",
-        "        - Own lines",
-        "        - Any lines",
-    ]
-    for d in res["impls"]:
-        loc = f"``{d['file']}:{d['a']}-{d['b']}``" if d["file"] else "no body found"
+    lines += ["", f"   {adequacy_summary(res)}", ""]
+    bodies = [d for d in res["impls"] if d["file"]]
+    if bodies:
         lines += [
-            f"      * - ``{d['sym']}``",
-            f"        - {d['variant'] or '—'}",
-            f"        - {loc}",
-            f"        - {d['own']}",
-            f"        - {d['any']}",
+            "   .. list-table::",
+            "      :header-rows: 1",
+            "      :class: zd-adq-bodies",
+            "",
+            "      * - Body",
+            "        - Own tests ran",
+            "        - Other tests",
         ]
-    lines.append("")
-    for d in res["impls"]:
-        if not d["file"] or not (d["own_tests"] or d["other_tests"]):
-            continue
-        lines += [f"   ``{d['sym']}`` ({d['variant']}, ``{d['file']}:{d['a']}-{d['b']}``):", ""]
-        for case, hit in d["own_tests"].items():
-            lines.append(f"   * own :need:`{case}`: lines {line_ranges(hit)}")
-        others = list(d["other_tests"].items())
-        for key, hit in others[:_OTHER_TESTS_SHOWN]:
-            lines.append(f"   * other {_need_ref(key, run)}: lines {line_ranges(hit)}")
-        if len(others) > _OTHER_TESTS_SHOWN:
-            lines.append(f"   * and {len(others) - _OTHER_TESTS_SHOWN} other tests")
+        for d in bodies:
+            name = _BODY_NAME[d["variant"]].format(d["sym"])
+            others = _other_count(d, run)
+            others = f"{others} test case{'s' if others != 1 else ''}" if others else "none"
+            lines += [
+                f"      * - ``{name}``",
+                "",
+                f"          :zd-adq-loc:`{_BODY_FORM[d['variant']]}, "
+                f"{d['file']}:{d['a']}-{d['b']}`",
+                f"        - {_own_cell(d)}",
+                f"        - {others}",
+            ]
         lines.append("")
+    no_body = [s for s, (body, _, _) in _symbol_states(res["impls"]).items() if not body]
+    if bodies and no_body:
+        lines += [f"   No body found: {_code_list(no_body)}.", ""]
+    # Who runs the code that the own tests miss: where a @verifies can go.
+    for d in bodies:
+        if d["own"] or not d["other_tests"]:
+            continue
+        name = _BODY_NAME[d["variant"]].format(d["sym"])
+        lines += [f"   Other tests that run ``{name}``:", ""]
+        for ranges, refs in _other_groups(d, run):
+            more = len(refs) - _OTHER_TESTS_SHOWN
+            tail = f" and {more} more" if more > 0 else ""
+            lines.append(f"   * lines {ranges}: {', '.join(refs[:_OTHER_TESTS_SHOWN])}{tail}")
+        lines.append("")
+    cases = ", ".join(f":need:`{c}`" for c in res["cases"])
+    lines += ["   .. container:: need-refs", "", f"      **Verifying tests:** {cases}", ""]
+    for role, label in _BODY_FALLBACK:
+        if role not in fields:
+            lines += [f"      **{label}:** {values[role]}", ""]
     return lines
 
 
 def build_coverage_rst(
     results, run, source, impl_loc, need_names=None, fields=(), prefix="ADQ", layout="",
-    impl_files=IMPL_PATTERNS,
+    impl_files=IMPL_PATTERNS, titles=None,
 ):
     """RST lines for the whole directive: run summary, distribution, needs by verdict.
 
     ``impl_files``: the body files that the run searched, for the summary.
+    ``titles``: the title of each requirement, for the title of its need.
     """
     counts = Counter(r["verdict"] for r in results.values())
     symbols = sorted({s for r in results.values() for s in r["symbols"]})
@@ -208,7 +305,8 @@ def build_coverage_rst(
         lines += [heading, "-" * len(heading), ""]
         for req in reqs:
             lines += build_adequacy_rst(
-                req, results[req], run, need_names, fields, prefix, layout
+                req, results[req], run, need_names, fields, prefix, layout,
+                (titles or {}).get(req),
             )
     return lines
 
@@ -299,6 +397,7 @@ class TestCoverageDirective(Directive):
             getattr(config, "testcoverage_id_prefix", "ADQ"),
             self.options.get("layout", "").strip(),
             impl_files,
+            need_titles(json_paths),
         )
         dump_dir = getattr(config, "dump_generated_rst", "")
         if dump_dir:
@@ -316,7 +415,13 @@ class TestCoverageDirective(Directive):
         return container.children
 
 
+def _cell_role(name, rawtext, text, lineno, inliner, options=None, content=None):
+    return [nodes.inline(rawtext, text, classes=[name])], []
+
+
 def setup(app):
+    for role in CELL_ROLES:
+        app.add_role(role, _cell_role)
     # The per-test coverage run directory (ZDOCS_COVERAGE_OUT): twister.json,
     # coverage/test_matrix.json and zephyr.sha.
     app.add_config_value("coverage_output_dir", "", "env")

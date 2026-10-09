@@ -312,3 +312,67 @@ table.need.need.need[class*=" needs_layout_zdocs"] tr.meta :is(.needs_test_funct
     font-size: 0.95em;
 }
 
+/*
+ * The body table of an adequacy need (testcoverage): one row per body of a
+ * satisfying symbol. The roles zd-adq-ok / -miss / -none give the lines that
+ * the own tests ran as a chip; zd-adq-loc is the form and place of the body.
+ */
+html.writer-html5 .rst-content table.need.need.need[class*=" needs_layout_zdocs"] tr.content table.zd-adq-bodies {
+    width: 100%;
+    margin: 0 0 0.75rem;
+    border: none;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+}
+html.writer-html5 .rst-content table.need.need.need[class*=" needs_layout_zdocs"] tr.content table.zd-adq-bodies colgroup {
+    display: none;
+}
+html.writer-html5 .rst-content table.need.need.need[class*=" needs_layout_zdocs"] tr.content table.zd-adq-bodies :is(th, td) {
+    padding: 0.35rem 0.75rem 0.35rem 0;
+    border: none;
+    border-bottom: 1px solid var(--zd-border);
+    background: transparent;
+    vertical-align: top;
+    white-space: normal;
+    font-size: inherit;
+    line-height: 1.35;
+}
+html.writer-html5 .rst-content table.need.need.need[class*=" needs_layout_zdocs"] tr.content table.zd-adq-bodies th {
+    border-bottom-width: 2px;
+    color: var(--zd-label);
+    font-weight: 600;
+}
+html.writer-html5 .rst-content table.need.need.need[class*=" needs_layout_zdocs"] tr.content table.zd-adq-bodies :is(th, td):first-child {
+    width: 55%;
+}
+html.writer-html5 .rst-content table.need.need.need[class*=" needs_layout_zdocs"] tr.content table.zd-adq-bodies :is(th, td):nth-child(2) {
+    width: 22%;
+}
+html.writer-html5 .rst-content table.need.need.need[class*=" needs_layout_zdocs"] tr.content table.zd-adq-bodies td p {
+    margin: 0;
+    font-size: inherit;
+    line-height: inherit;
+}
+html.writer-html5 .rst-content table.need.need.need[class*=" needs_layout_zdocs"] tr.content table.zd-adq-bodies code {
+    padding: 0;
+    border: none;
+    background: none;
+    color: var(--zd-text);
+    font-size: 0.95em;
+    font-weight: 600;
+}
+table.need.need.need[class*=" needs_layout_zdocs"] .zd-adq-loc {
+    color: var(--zd-label);
+    font-family: var(--zd-mono);
+    font-size: 0.85em;
+}
+table.need.need.need[class*=" needs_layout_zdocs"] :is(.zd-adq-ok, .zd-adq-miss, .zd-adq-none) {
+    display: inline-block;
+    padding: 0 0.5em;
+    border-radius: 999px;
+    font-size: 0.9em;
+    white-space: nowrap;
+}
+table.need.need.need[class*=" needs_layout_zdocs"] .zd-adq-ok { background: #e3f3e6; color: #1e6b33; }
+table.need.need.need[class*=" needs_layout_zdocs"] .zd-adq-miss { background: #fbe3e3; color: #a12828; }
+table.need.need.need[class*=" needs_layout_zdocs"] .zd-adq-none { background: #eceef1; color: #5f6670; }
