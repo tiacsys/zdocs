@@ -25,11 +25,16 @@ Decision
 The engine carries a **second, fast unit suite in its own repository**, at
 ``sphinx/_extensions/_tests/``, covering the pure-Python extension modules.
 
+*Update 2026-10-09:* the plain modules that the extensions share moved to
+``sphinx/_scripts/``, with their tests in ``sphinx/_scripts/_tests/``. The
+fixtures of both moved to ``sphinx/_fixtures/``. ``pytest.ini`` at the
+repository root selects both folders.
+
 There are therefore two suites in two repositories:
 
 .. code-block:: console
 
-   $ cd tools/zdocs && python3 -m pytest sphinx/_extensions/_tests -q   # fast
+   $ cd tools/zdocs && python3 -m pytest -q                             # fast
    $ cd zdocs-tests && python3 -m pytest tests/ -q                      # acceptance
 
 Neither layer can contaminate the other's count, and the engine becomes

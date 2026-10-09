@@ -2,7 +2,8 @@ Sphinx extensions
 ==================
 
 Reference documentation for the modules under ``sphinx/_extensions/``: directives, roles and
-builders loaded by :py:func:`zdocs_conf.configure`. See the companion
+builders loaded by :py:func:`zdocs_conf.configure`. The plain modules they share are on
+:doc:`support-modules`. See the companion
 manual's :external+zdocs-manual:doc:`Directives and roles <reference/directives-and-roles>`
 page for how a document author uses each one.
 
@@ -81,14 +82,6 @@ Re-reads a document when its sphinx-needs TOML file or the needs it imports chan
 .. automodule:: needs_config_state
    :members:
 
-``needs_fields``
-------------------
-
-Which optional need fields a consumer declared.
-
-.. automodule:: needs_fields
-   :members:
-
 ``xref_builder``
 ------------------
 
@@ -96,44 +89,3 @@ The stage-1 ``xref`` builder for the two-stage documentation build.
 
 .. automodule:: xref_builder
    :members:
-
-``doxygen_parser``
---------------------
-
-Doxygen XML parsing, with no Sphinx dependency of its own.
-
-.. automodule:: doxygen_parser
-   :members:
-
-``rst_builders``
-------------------
-
-RST string builders, with no Sphinx dependency of their own.
-
-.. automodule:: rst_builders
-   :members:
-
-``twister_reader``
---------------------
-
-Twister output parsing, with no Sphinx dependency of its own.
-
-.. automodule:: twister_reader
-   :members:
-   :exclude-members: parse_twister_results
-
-``adequacy``
---------------
-
-Coverage adequacy, with no Sphinx dependency of its own.
-
-.. automodule:: adequacy
-   :members:
-
-..
-   parse_twister_results is excluded: its docstring's own example text,
-   "leading 'test_' prefix stripped", ends in a bare trailing underscore
-   directly after a word — reST's own "quoted hyperlink reference" syntax
-   (``word_``) — with no matching target, so autodoc turns it into
-   "Unknown target name: 'test'". A source defect, not a directive-option
-   fix; see the final report.

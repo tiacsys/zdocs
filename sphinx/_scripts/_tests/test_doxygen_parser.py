@@ -3,10 +3,12 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import xml.etree.ElementTree as ET
+from pathlib import Path
 
 import doxygen_parser as dp
 import pytest
-from conftest import FIXTURES
+
+FIXTURES = Path(__file__).resolve().parents[2] / "_fixtures"
 
 # ---------------------------------------------------------------------------
 # elem_text

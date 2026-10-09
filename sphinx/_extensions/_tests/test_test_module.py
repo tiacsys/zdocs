@@ -12,10 +12,11 @@ from types import SimpleNamespace
 
 import pytest
 import test_module as tm
-from conftest import FIXTURES
 from docutils import nodes
 from docutils.utils import Reporter
 from twister_reader import SpecLookup
+
+FIXTURES = Path(__file__).resolve().parents[2] / "_fixtures"
 
 _ROOTS = Path(__file__).parent / "roots"
 

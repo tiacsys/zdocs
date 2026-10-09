@@ -18,8 +18,9 @@ from pathlib import Path
 import pytest
 import rst_builders as rb
 import twister_reader as tw
-from conftest import FIXTURES
 from twister_reader import SpecLookup
+
+FIXTURES = Path(__file__).resolve().parents[2] / "_fixtures"
 
 _ROOTS = Path(__file__).parent / "roots"
 DATA = FIXTURES / "twister-param"

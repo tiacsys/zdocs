@@ -9,5 +9,6 @@ system. The API's for all of this can be found in the sub-sections below.
    :maxdepth: 1
 
    extensions
+   support-modules
    scripts
    conf

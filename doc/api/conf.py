@@ -15,6 +15,7 @@ from zdocs_conf import configure
 ENGINE_ROOT = Path(os.environ["ZDOCS_CONF_DIR"]).resolve().parent
 
 sys.path.insert(0, str(ENGINE_ROOT / "sphinx" / "_extensions"))
+sys.path.insert(0, str(ENGINE_ROOT / "sphinx" / "_scripts"))
 sys.path.insert(0, str(ENGINE_ROOT / "scripts"))
 
 configure(

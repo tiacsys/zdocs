@@ -56,7 +56,7 @@ repos:
   # Read-only structural checks. Nothing here rewrites a file.
   #
   # trailing-whitespace and end-of-file-fixer are intentionally absent: the
-  # twister and Doxygen fixtures under sphinx/_extensions/_tests/fixtures/ are
+  # twister and Doxygen fixtures under sphinx/_fixtures/ are
   # hand-crafted and compared byte for byte, and reStructuredText gives trailing
   # whitespace meaning in line blocks. Both hooks would edit those files.
   - repo: https://github.com/pre-commit/pre-commit-hooks

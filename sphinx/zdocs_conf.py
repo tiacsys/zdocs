@@ -36,10 +36,13 @@ from pathlib import Path
 ZDOCS_DOC_DIR = Path(__file__).resolve().parent
 ZDOCS_BASE = ZDOCS_DOC_DIR.parent
 
-# zdocs' own extensions and scripts, plus Zephyr's doc extensions (external_content
-# assembles the Sphinx source tree). cmake/sphinx.cmake puts ZEPHYR_BASE into
-# the environment of every Sphinx run, from the Zephyr that find_package(Zephyr)
-# found. find_package itself sets only the CMake variable.
+# zdocs' own extensions (_extensions: Sphinx extensions, each with a setup()),
+# the modules they share (_scripts: plain Python, no setup()) and scripts, plus
+# Zephyr's doc extensions (external_content assembles the Sphinx source tree).
+# cmake/sphinx.cmake puts ZEPHYR_BASE into the environment of every Sphinx run,
+# from the Zephyr that find_package(Zephyr) found. find_package itself sets
+# only the CMake variable.
+sys.path.insert(0, str(ZDOCS_DOC_DIR / "_scripts"))
 sys.path.insert(0, str(ZDOCS_DOC_DIR / "_extensions"))
 sys.path.insert(0, str(ZDOCS_BASE / "scripts"))
 _zephyr_base = os.environ.get("ZEPHYR_BASE")

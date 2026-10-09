@@ -21,7 +21,8 @@ import needs_fields
 import pytest
 import rst_builders as rb
 import test_module as tm
-from conftest import FIXTURES
+
+FIXTURES = Path(__file__).resolve().parents[2] / "_fixtures"
 
 _ROOTS = Path(__file__).parent / "roots"
 XML = FIXTURES / "doxygen-kconfig"
