@@ -6,12 +6,26 @@
 
 Not a Sphinx extension: a document calls :func:`need_layout` in its
 ``conf.py`` (re-exported by ``zdocs_conf``) and puts the result in its own
-``needs_layouts``::
+``needs_layouts``, under a name that starts with ``zdocs``::
 
     from zdocs_conf import configure, need_layout
 
-    needs_layouts = {"requirement": need_layout(hide_backlinks=["covers"])}
-    needs_default_layout = "requirement"
+    needs_layouts = {
+        "zdocs_requirement": need_layout(
+            fields=[("rtype", "Kind"), ("component", "Component")],
+            hide_backlinks=["covers"],
+        )
+    }
+    needs_default_layout = "zdocs_requirement"
+
+The layout is a card: a head with the type, the ID, the status and the title;
+then the text of the need; then its fields and links. ``zdocs-needs.css``
+styles a need whose layout name starts with ``zdocs`` (the HTML class
+``needs_layout_<name>``), and the ``need_cards`` extension gives each
+need type its ``color`` from the needs configuration.
+
+The rows stay in the sphinx-needs order (head, fields, text); the CSS shows
+the fields last. So the PDF and a screen reader still give the fields first.
 
 sphinx-needs shows every incoming link of a need. A requirement can have
 hundreds of test results that cover it, and that list hides the rest of the
@@ -22,15 +36,21 @@ need flows still have them.
 
 import re
 
-#: A link name as sphinx-needs accepts it: an option name.
-_LINK_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_-]*$")
+#: A link or field name as sphinx-needs accepts it: an option name.
+_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_-]*$")
 
-#: The head line of the sphinx-needs "clean" layout.
-_CLEAN_HEAD = (
-    '<<meta("type_name")>>: **<<meta("title")>>** <<meta_id()>>  '
-    '<<collapse_button("meta", collapsed="icon:arrow-down-circle", '
-    'visible="icon:arrow-right-circle", initial=False)>> '
-)
+#: A field label: words, not RST or the quotes of the layout call.
+_LABEL = re.compile(r"^[\w][\w .,()/-]*$")
+
+def _head(pill):
+    """The head: type, ID and the ``pill`` field on one line, the title on the next."""
+    return [f'<<meta("type_name")>> <<meta_id()>> <<meta("{pill}")>>', '<<meta("title")>>']
+
+
+def _check_names(what, names):
+    for name in names:
+        if not _NAME.match(name):
+            raise ValueError(f"{what}: {name!r} is no name; give the name, not its title")
 
 
 def links_line(hide_backlinks=()):
@@ -38,28 +58,41 @@ def links_line(hide_backlinks=()):
 
     For a document's own layout: put it in place of ``<<meta_links_all()>>``.
     """
-    for name in hide_backlinks:
-        if not _LINK_NAME.match(name):
-            raise ValueError(
-                f"hide_backlinks: {name!r} is no link name; give the name of the "
-                f"link, not its incoming title"
-            )
+    _check_names("hide_backlinks", hide_backlinks)
     if not hide_backlinks:
         return "<<meta_links_all()>>"
     exclude = ", ".join(f'"{name}_back"' for name in hide_backlinks)
     return f"<<meta_links_all(exclude=[{exclude}])>>"
 
 
-def need_layout(hide_backlinks=()):
-    """The sphinx-needs "clean" layout, without the incoming links ``hide_backlinks``.
+def field_line(name, label):
+    """The layout line for field ``name``, shown as ``label:``."""
+    _check_names("fields", [name])
+    if not _LABEL.match(label):
+        raise ValueError(f"fields: the label {label!r} of {name!r} must be plain words")
+    return f'<<meta("{name}", prefix="{label}:")>>'
 
-    ``hide_backlinks`` are link names from ``needs_config.toml`` (``"covers"``),
-    not their incoming titles (``"covered by"``).
+
+def need_layout(fields=None, hide_backlinks=(), pill="status"):
+    """The zdocs need card.
+
+    ``fields`` is a list of ``(name, label)`` pairs, in the order to show. If it
+    is ``None``, the card shows every field that has a value, under its own
+    name.
+
+    ``hide_backlinks`` are link names from ``needs_config.toml``
+    (``"covers"``), not their incoming titles (``"covered by"``).
+
+    ``pill`` is the field that the head shows as a pill, next to the ID: the
+    ``status``, or the ``verdict`` of an adequacy need. ``zdocs-needs.css``
+    colors the pill of a test result status and of a verdict.
     """
+    _check_names("pill", [pill])
+    if fields is None:
+        meta = [f'<<meta_all(no_links=True, exclude=["{pill}"])>>']
+    else:
+        meta = [field_line(name, label) for name, label in fields]
     return {
         "grid": "simple",
-        "layout": {
-            "head": [_CLEAN_HEAD],
-            "meta": ["<<meta_all(no_links=True)>>", links_line(hide_backlinks)],
-        },
+        "layout": {"head": _head(pill), "meta": [*meta, links_line(hide_backlinks)]},
     }

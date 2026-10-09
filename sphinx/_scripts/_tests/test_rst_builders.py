@@ -267,3 +267,63 @@ def test_build_procedure_need_rst_reads_every_see_section():
         memberdef, "group__queue__procedures", "queue_procedures", "../testspec", "../api"
     )
     assert "**See also:** ``k_queue_get()``, ``k_queue_is_empty()``" in rst
+
+
+# ---------------------------------------------------------------------------
+# The references of a need (Depends on, Source, See also, Declared in) go into
+# a `need-refs` container, after the text, so a need layout can set them apart.
+# ---------------------------------------------------------------------------
+
+
+def _container(rst):
+    """The lines of the need-refs container: the directive and its indented body."""
+    lines = rst.split("\n")
+    start = lines.index("   .. container:: need-refs")
+    body = []
+    for line in lines[start + 1:]:
+        if line and not line.startswith("      "):
+            break
+        body.append(line)
+    return lines[start], [line.strip() for line in body if line.strip()]
+
+
+def test_the_references_of_a_test_case_are_in_the_container_in_order():
+    info = _base_info(
+        depends_on=["CONFIG_ASSERT"],
+        see_rst="**See also:** ``k_queue_get()``",
+        detail_lines=["The queue keeps the order."],
+    )
+    rst = rb.build_need_rst(info, "kernel.queue")
+    _, refs = _container(rst)
+    assert refs == [
+        "**Depends on:** ``CONFIG_ASSERT``",
+        "**Source:** `test_queue.c (line 42) </testspec/html/group.html#abc>`__",
+        "**See also:** ``k_queue_get()``",
+    ]
+    assert rst.index("The queue keeps the order.") < rst.index(".. container:: need-refs")
+
+
+def test_a_test_case_without_references_has_no_container():
+    rst = rb.build_need_rst(_base_info(source_file="", doxygen_url=""), "kernel.queue")
+    assert "need-refs" not in rst
+
+
+def test_the_references_of_a_symbol_are_in_the_container():
+    info = {
+        "name": "k_queue_init",
+        "kind": "function",
+        "brief": "Initialize a queue.",
+        "doxygen_url": "",
+        "satisfies": [],
+        "depends_on": ["CONFIG_MULTITHREADING"],
+        "source_file": "queue.h (line 39)",
+    }
+    rst = rb.build_symbol_need_rst(info)
+    _, refs = _container(rst)
+    assert refs == [
+        "**Depends on:** ``CONFIG_MULTITHREADING``",
+        "**Declared in:** ``queue.h (line 39)``",
+    ]
+    # Every body line is indented under the directive: nothing ends the need early.
+    body = rst.split("\n")[2:]
+    assert all(line == "" or line.startswith("   ") for line in body)

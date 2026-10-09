@@ -1,0 +1,314 @@
+/*
+ * Copyright (c) 2026 inovex GmbH
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/*
+ * The zdocs need card (need_layouts.need_layout()).
+ *
+ * Only for a need whose layout name starts with "zdocs": sphinx-needs gives
+ * the table the class needs_layout_<name>. A document's own layouts keep the
+ * sphinx-needs look.
+ *
+ * The rules start with table.need.need.need, as sphinx-needs' own do, so that
+ * they win over the theme without !important.
+ *
+ * Each need type has its color in --zd-type. The need_cards extension
+ * sets it from the "color" of the type in the needs configuration
+ * (zdocs-need-types.css). The other colors come from it.
+ */
+
+table.need.need.need[class*=" needs_layout_zdocs"] {
+    --zd-type: #eeeeee;
+    --zd-accent: #666666;
+    --zd-accent: oklch(from var(--zd-type) 0.52 calc(c * 4 + 0.02) h);
+    --zd-border: #d5d9de;
+    --zd-label: #5f6670;
+    --zd-text: #1d2329;
+    --zd-mono: SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+
+    display: block;
+    margin: 1.5em 0;
+    background: #fff;
+    border: 1px solid var(--zd-border);
+    border-left: 5px solid var(--zd-accent);
+    border-radius: 6px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+    overflow: hidden;
+}
+
+/*
+ * Show the head, the text, then the fields. The rows stay in the sphinx-needs
+ * order (head, meta, content) in the HTML, so the PDF does not change; the
+ * table body becomes a flex column and the meta row moves to the end.
+ */
+table.need.need.need[class*=" needs_layout_zdocs"] > tbody {
+    display: flex;
+    flex-direction: column;
+}
+table.need.need.need[class*=" needs_layout_zdocs"] > tbody > tr,
+table.need.need.need[class*=" needs_layout_zdocs"] > tbody > tr > td {
+    display: block;
+}
+table.need.need.need[class*=" needs_layout_zdocs"] > tbody > tr.head { order: 0; }
+table.need.need.need[class*=" needs_layout_zdocs"] > tbody > tr.content { order: 1; }
+/* A need without text (most test results) has no text row. */
+table.need.need.need[class*=" needs_layout_zdocs"] > tbody > tr.content:not(:has(> td > *)) {
+    display: none;
+}
+table.need.need.need[class*=" needs_layout_zdocs"] > tbody > tr.meta { order: 2; }
+
+/* No theme row stripes in a card */
+.rst-content table.need.need.need[class*=" needs_layout_zdocs"] > tbody > tr > td {
+    background: transparent;
+}
+
+/* -- Head: type, ID and status; then the title ------------------------------ */
+
+table.need.need.need[class*=" needs_layout_zdocs"] > tbody > tr.head {
+    background: color-mix(in srgb, var(--zd-type) 55%, #fff);
+}
+table.need.need.need[class*=" needs_layout_zdocs"] > tbody > tr.head > td:not([rowspan]) {
+    padding: 0.7em 1.25em 0.75em;
+    border-bottom: 1px solid color-mix(in srgb, var(--zd-type) 70%, var(--zd-border));
+}
+table.need.need.need[class*=" needs_layout_zdocs"] tr.head .needs_type_name {
+    margin-right: 0.6em;
+    color: var(--zd-accent);
+    font-size: 0.75em;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+table.need.need.need[class*=" needs_layout_zdocs"] tr.head .needs-id a {
+    color: #2b3a4a;
+    font-family: var(--zd-mono);
+    font-size: 0.85em;
+}
+table.need.need.need[class*=" needs_layout_zdocs"] tr.head :is(.needs_status, .needs_verdict) {
+    display: inline-block;
+    margin-left: 0.7em;
+    padding: 0.05em 0.6em;
+    border: 1px solid var(--zd-accent);
+    border-radius: 999px;
+    color: var(--zd-accent);
+    font-size: 0.72em;
+    font-weight: 600;
+    text-transform: capitalize; /* "draft" and "Draft" look the same */
+    vertical-align: 0.1em;
+}
+/*
+ * The status of a test result and the verdict of an adequacy need (the
+ * need_cards extension adds zd-status-<status> and zd-verdict-<verdict>):
+ * green good, red failing, amber a gap, grey not judged or not run. Other
+ * statuses, like the "Draft" of a requirement, keep the type accent.
+ */
+table.need.need.need[class*=" needs_layout_zdocs"]:is(.zd-status-passed, .zd-verdict-true) tr.head :is(.needs_status, .needs_verdict) {
+    border-color: #1a7f37;
+    background: #dafbe1;
+    color: #116329;
+}
+table.need.need.need[class*=" needs_layout_zdocs"]:is(.zd-status-failed, .zd-status-error, .zd-verdict-broken) tr.head :is(.needs_status, .needs_verdict) {
+    border-color: #cf222e;
+    background: #ffebe9;
+    color: #a40e26;
+}
+table.need.need.need[class*=" needs_layout_zdocs"]:is(.zd-status-skipped, .zd-status-filtered, .zd-status-blocked, .zd-status-not-run, .zd-verdict-unattributed, .zd-verdict-unresolved, .zd-verdict-no-cov) tr.head :is(.needs_status, .needs_verdict) {
+    border-color: #8c959f;
+    background: #eaeef2;
+    color: #424a53;
+}
+/* A gap, not a failure: some of the code, or no code at all. */
+table.need.need.need[class*=" needs_layout_zdocs"]:is(.zd-verdict-partial, .zd-verdict-no-impl) tr.head :is(.needs_status, .needs_verdict) {
+    border-color: #bf8700;
+    background: #fff8c5;
+    color: #7d4e00;
+}
+table.need.need.need[class*=" needs_layout_zdocs"] tr.head .needs_title {
+    display: block;
+    margin-top: 0.2em;
+    color: var(--zd-text);
+    font-size: 1.2em;
+    font-weight: 600;
+    line-height: 1.3;
+}
+
+/* -- The text of the need ----------------------------------------------------- */
+
+/*
+ * The size, line height and paragraph gap of the page text around the card.
+ * The rtd theme sets 90 % / .9rem and a 1rem line height in every table cell
+ * (html.writer-html5 .rst-content table.docutils td > p), and a need is a table.
+ */
+html .rst-content table.need.need.need[class*=" needs_layout_zdocs"] > tbody > tr.content > td {
+    padding: 1.1rem 1.25rem 0.5rem;
+    font-size: 1rem;
+    line-height: 1.5rem;
+}
+html.writer-html5 .rst-content table.need.need.need[class*=" needs_layout_zdocs"] > tbody > tr.content > td p {
+    margin: 0 0 0.75rem;
+    font-size: 1rem;
+    line-height: 1.5rem;
+}
+
+/* The brief that zdocs writes first in a test case (rst-class need-brief) */
+table.need.need.need[class*=" needs_layout_zdocs"] tr.content p.need-brief {
+    color: var(--zd-text);
+    font-weight: 600;
+}
+
+/*
+ * A paragraph right before a list ("Test steps:", "Expected result:") is its
+ * heading. Not the first paragraph: there it is the introduction of the text
+ * (a test procedure starts with "... performs the following sequence:").
+ */
+html.writer-html5 .rst-content table.need.need.need[class*=" needs_layout_zdocs"] > tbody > tr.content > td > p:not(:first-child):has(+ ul, + ol) {
+    margin: 1rem 0 0.25rem;
+    color: var(--zd-text);
+    font-weight: 600;
+}
+
+/* Lists: inside the text column, one line height apart */
+html .rst-content table.need.need.need[class*=" needs_layout_zdocs"] > tbody > tr.content > td :is(ul, ol) {
+    margin: 0 0 0.75rem 1.4rem;
+    padding: 0;
+}
+html .rst-content table.need.need.need[class*=" needs_layout_zdocs"] > tbody > tr.content > td ul > li {
+    list-style: disc;
+}
+html .rst-content table.need.need.need[class*=" needs_layout_zdocs"] > tbody > tr.content > td li {
+    margin: 0.1rem 0;
+    line-height: 1.5rem;
+}
+html.writer-html5 .rst-content table.need.need.need[class*=" needs_layout_zdocs"] > tbody > tr.content > td li > p {
+    margin: 0;
+    line-height: 1.5rem;
+}
+
+/*
+ * A field list in the text (the parameters of a test procedure): the name in
+ * code type, the description beside it, without the theme's boxes.
+ */
+html.writer-html5 .rst-content table.need.need.need[class*=" needs_layout_zdocs"] > tbody > tr.content > td dl.field-list {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    column-gap: 1em;
+    margin: 0 0 0.75rem;
+}
+html.writer-html5 .rst-content table.need.need.need[class*=" needs_layout_zdocs"] > tbody > tr.content > td dl.field-list > dt {
+    margin: 0;
+    padding: 0;
+    border: none;
+    background: none;
+    font-weight: 400;
+    line-height: 1.5rem;
+}
+html.writer-html5 .rst-content table.need.need.need[class*=" needs_layout_zdocs"] > tbody > tr.content > td dl.field-list > dt code {
+    padding: 0;
+    border: none;
+    background: none;
+    color: var(--zd-text);
+    font-family: var(--zd-mono);
+    font-size: 0.9em;
+}
+html.writer-html5 .rst-content table.need.need.need[class*=" needs_layout_zdocs"] > tbody > tr.content > td dl.field-list > dd {
+    margin: 0;
+    padding: 0;
+}
+
+/*
+ * The references that zdocs writes at the end of a test case (Depends on,
+ * Source, See also; container need-refs): a label column like the fields.
+ */
+html .rst-content table.need.need.need[class*=" needs_layout_zdocs"] div.need-refs {
+    margin: 1rem 0 0.25rem;
+    padding-top: 0.6rem;
+    border-top: 1px dashed #e1e4e8;
+}
+html.writer-html5 .rst-content table.need.need.need[class*=" needs_layout_zdocs"] > tbody > tr.content > td div.need-refs > p {
+    margin: 0.15rem 0;
+    padding-left: 9.5em;
+    text-indent: -9.5em;
+    font-size: 0.9rem;
+    line-height: 1.6;
+}
+html .rst-content table.need.need.need[class*=" needs_layout_zdocs"] div.need-refs > p > strong:first-child {
+    display: inline-block;
+    width: calc(9.5em - 0.21em); /* the space after the label follows */
+    color: var(--zd-label);
+    font-weight: 400;
+    text-indent: 0;
+}
+
+/* -- Fields and links: one label/value grid ------------------------------------ */
+
+html .rst-content table.need.need.need[class*=" needs_layout_zdocs"] > tbody > tr.meta > td {
+    background: #fafbfc;
+    font-size: 0.9rem;
+    line-height: 1.6;
+}
+table.need.need.need[class*=" needs_layout_zdocs"] > tbody > tr.meta > td:not([rowspan]) {
+    padding: 0.5rem 1.25rem 0.6rem;
+    border-top: 1px solid #e6e9ec;
+    border-bottom: none;
+}
+table.need.need.need[class*=" needs_layout_zdocs"] tr.meta div.line-block {
+    margin: 0;
+}
+table.need.need.need[class*=" needs_layout_zdocs"] tr.meta div.line {
+    min-height: 0;
+    margin: 0;
+    padding: 0;
+}
+/* The wrappers around a row take no box of their own. */
+table.need.need.need[class*=" needs_layout_zdocs"] tr.meta div.line:has(div.line),
+table.need.need.need[class*=" needs_layout_zdocs"] tr.meta div.line:has(div.line) > span,
+table.need.need.need[class*=" needs_layout_zdocs"] tr.meta div.line:has(div.line) > span > span,
+table.need.need.need[class*=" needs_layout_zdocs"] tr.meta div.line span:has(.needs_label) {
+    display: contents;
+}
+/*
+ * A row is a line without lines in it: a field (label and data spans) or a
+ * link line (the text "Verified by:" and a span with the links).
+ */
+table.need.need.need[class*=" needs_layout_zdocs"] tr.meta div.line:not(:has(div.line)) {
+    display: grid;
+    grid-template-columns: 8.5em 1fr;
+    column-gap: 1em;
+    padding: 0.1em 0;
+    color: var(--zd-label);
+    line-height: 1.6;
+}
+/* A need without fields and links (a test procedure) has no fields row. */
+table.need.need.need[class*=" needs_layout_zdocs"] > tbody > tr.meta:not(:has(.needs_data, a, .needs_dead_link)) {
+    display: none;
+}
+/* A field without a value is a line with one empty span: no row. */
+table.need.need.need[class*=" needs_layout_zdocs"] tr.meta div.line:has(> span:empty:only-child) {
+    display: none;
+}
+table.need.need.need[class*=" needs_layout_zdocs"] tr.meta .needs_data,
+table.need.need.need[class*=" needs_layout_zdocs"] tr.meta div.line:not(:has(div.line)) > span:not(:has(.needs_label)) {
+    color: var(--zd-text);
+}
+/* Links, and links to a need that does not exist (a span, not an a) */
+table.need.need.need[class*=" needs_layout_zdocs"] tr.meta :is(a, .needs_dead_link) {
+    font-family: var(--zd-mono);
+    font-size: 0.95em;
+    white-space: nowrap;
+}
+/* The arrow of a link into another document: every second link has one. */
+table.need.need.need[class*=" needs_layout_zdocs"] a.external_link::after {
+    content: none;
+}
+
+/*
+ * The engine's own fields that hold code or names from the build: the test
+ * function, module path and suite; the platform, scenario and twister ID.
+ */
+table.need.need.need[class*=" needs_layout_zdocs"] tr.meta :is(.needs_test_function, .needs_test_module, .needs_suite, .needs_platform, .needs_scenario, .needs_twister_id) .needs_data {
+    font-family: var(--zd-mono);
+    font-size: 0.95em;
+}
+

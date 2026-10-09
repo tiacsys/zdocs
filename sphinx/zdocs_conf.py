@@ -135,6 +135,10 @@ def configure(
         # Also when the needs it imports from a peer's needs.json change:
         # else a page does not show a new incoming link from the peer.
         "needs_config_state",
+        # For the zdocs need cards (zdocs-needs.css): the color of each need
+        # type, from the needs configuration (one small CSS file), and a class
+        # for the status of each need.
+        "need_cards",
         # The `doc_control` directive: the controlled-document header (owner,
         # classification, approval dates, version). Registers `signature_section`
         # and `releaselevel` as config values, so it must be loaded even by
@@ -418,7 +422,7 @@ def configure(
     namespace["html_static_path"] = [str(ZDOCS_DOC_DIR / "_static")] + [
         str(p) for p in (static_path or [])
     ]
-    namespace["html_css_files"] = ["zdocs-sphinx.css"] + list(css_files or [])
+    namespace["html_css_files"] = ["zdocs-sphinx.css", "zdocs-needs.css"] + list(css_files or [])
     if refs is not None:
         # Consumed by the cross-document navigation in the page template.
         namespace["html_context"] = {"reference_groups": refs.reference_groups}

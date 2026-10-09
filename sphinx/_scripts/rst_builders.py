@@ -91,8 +91,23 @@ def _depends_on_rst(info, depends_field):
         return [], []
     options = [f"   :depends_on: {'; '.join(conditions)}"] if depends_field else []
     label = info.get("depends_label") or "Depends on"
-    body = [f"   **{label}:** " + "; ".join(f"``{c}``" for c in conditions), ""]
+    body = [f"**{label}:** " + "; ".join(f"``{c}``" for c in conditions)]
     return options, body
+
+
+def _refs_rst(paragraphs):
+    """The need body lines for the reference paragraphs (Depends on, Source, See also).
+
+    They go into a ``container`` with the class ``need-refs``, so that a need
+    layout can set them apart from the text (zdocs-needs.css). The text of each
+    paragraph does not change. No paragraphs give no lines.
+    """
+    if not paragraphs:
+        return []
+    lines = ["   .. container:: need-refs", ""]
+    for paragraph in paragraphs:
+        lines += [f"      {paragraph}", ""]
+    return lines
 
 
 def build_need_rst(
@@ -162,18 +177,14 @@ def build_need_rst(
             lines.append(f"   {sline}" if sline else "")
         lines.append("")
 
-    lines += depends_body
-
+    refs = list(depends_body)
     if source_file and doxygen_url:
-        lines.append(f"   **Source:** `{source_file} <{doxygen_url}>`__")
-        lines.append("")
+        refs.append(f"**Source:** `{source_file} <{doxygen_url}>`__")
     elif source_file:
-        lines.append(f"   **Source:** {source_file}")
-        lines.append("")
-
+        refs.append(f"**Source:** {source_file}")
     if see_rst:
-        lines.append(f"   {see_rst}")
-        lines.append("")
+        refs.append(see_rst)
+    lines += _refs_rst(refs)
 
     return "\n".join(lines)
 
@@ -252,15 +263,12 @@ def build_procedure_need_rst(
             lines.append(f"   :``{pname}``: {pdesc}")
         lines.append("")
 
+    refs = []
     if source_file and doxygen_url:
-        lines.append(
-            f"   **Source:** :c:func:`{name}` — `{source_file} <{doxygen_url}>`__"
-        )
-        lines.append("")
-
+        refs.append(f"**Source:** :c:func:`{name}` — `{source_file} <{doxygen_url}>`__")
     if see_rst_str:
-        lines.append(f"   {see_rst_str}")
-        lines.append("")
+        refs.append(see_rst_str)
+    lines += _refs_rst(refs)
 
     return "\n".join(lines)
 
@@ -388,9 +396,10 @@ def build_symbol_need_rst(info, need_names=None, depends_field=False):
     if info["doxygen_url"]:
         head = f"`{kind.capitalize()} {name} <{info['doxygen_url']}>`__"
     lines += [f"   {head}" + (f" — {info['brief']}" if info["brief"] else ""), ""]
-    lines += depends_body
+    refs = list(depends_body)
     if info["source_file"]:
-        lines += [f"   **Declared in:** ``{info['source_file']}``", ""]
+        refs.append(f"**Declared in:** ``{info['source_file']}``")
+    lines += _refs_rst(refs)
     return "\n".join(lines)
 
 
