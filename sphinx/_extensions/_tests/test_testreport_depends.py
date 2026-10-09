@@ -18,7 +18,8 @@ import pytest
 import rst_builders as rb
 import test_module as tm
 import twister_reader as tw
-from conftest import FIXTURES
+
+FIXTURES = Path(__file__).resolve().parents[2] / "_fixtures"
 
 _ROOTS = Path(__file__).parent / "roots"
 DATA = FIXTURES / "twister-depends"

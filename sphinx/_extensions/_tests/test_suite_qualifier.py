@@ -22,8 +22,9 @@ from pathlib import Path
 
 import pytest
 import test_module as tm
-from conftest import FIXTURES
 from twister_reader import load_spec_lookup
+
+FIXTURES = Path(__file__).resolve().parents[2] / "_fixtures"
 
 _ROOTS = Path(__file__).parent / "roots"
 XML = FIXTURES / "doxygen-qualifier"

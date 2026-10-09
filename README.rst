@@ -83,10 +83,12 @@ non-Python ``dot`` (Graphviz) dependency the architecture diagrams need.
 Tests
 -----
 
-Two suites, in two repositories. The engine's own unit suite covers the
-pure-Python extensions and runs in about a second::
+Two suites, in two repositories. The engine's own unit suites cover the
+Sphinx extensions (``sphinx/_extensions/_tests``) and the plain modules they
+share (``sphinx/_scripts/_tests``). Both run in a few seconds; ``pytest.ini``
+selects them::
 
-    $ python3 -m pytest sphinx/_extensions/_tests -q
+    $ python3 -m pytest -q
 
 The acceptance suite lives in a separate project that consumes zdocs the way a
 real one does, builds real documentation with real tools, and asserts on

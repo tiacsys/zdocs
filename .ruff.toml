@@ -15,6 +15,7 @@ target-version = "py310"
 exclude = [
     "doc/_build",
     "sphinx/_extensions/_tests/roots/*/_build",
+    "sphinx/_scripts/_tests/roots/*/_build",
 ]
 
 [lint]

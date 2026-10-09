@@ -7,12 +7,14 @@ from pathlib import Path
 
 import pytest
 
-# Make _extensions/ importable without install
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+# Make _extensions/ importable without install, and _scripts/: the extensions
+# import the modules there.
+_SPHINX = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(_SPHINX / "_scripts"))
+sys.path.insert(0, str(_SPHINX / "_extensions"))
 
-FIXTURES = Path(__file__).parent / "fixtures"
-
-pytest_plugins = "sphinx.testing.fixtures"
+# The sphinx.testing fixtures (app, make_app, warning) come from pytest.ini at
+# the repository root, so both suites can run in one pytest call.
 # rootdir is intentionally left as the sphinx.testing default (None).
 # Tests pass srcdir as an absolute path so Sphinx uses the source tree directly
 # without copying, keeping __file__-relative paths in conf.py correct.

@@ -17,8 +17,9 @@ from types import SimpleNamespace
 import pytest
 import test_module as tm
 import twister_reader as tw
-from conftest import FIXTURES
 from docutils import nodes
+
+FIXTURES = Path(__file__).resolve().parents[2] / "_fixtures"
 
 _ROOTS = Path(__file__).parent / "roots"
 DATA = FIXTURES / "twister-path"

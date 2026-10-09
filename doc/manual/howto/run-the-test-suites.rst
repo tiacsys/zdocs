@@ -13,11 +13,13 @@ In the zdocs repository, no build tree and no west workspace required:
 
 .. code-block:: console
 
-   $ python3 -m pytest sphinx/_extensions/_tests -q
+   $ python3 -m pytest -q
 
-Pure-Python tests over the Sphinx extensions (``doxygen_parser``,
-``rst_builders``, ``twister_reader``, ``test_module``, and their need-type
-mapping) run in-process against fixture XML/JSON — no Sphinx build, no
+``pytest.ini`` selects two folders. ``sphinx/_scripts/_tests`` tests the plain
+modules (``doxygen_parser``, ``rst_builders``, ``twister_reader``).
+``sphinx/_extensions/_tests`` tests the Sphinx extensions (``test_module`` and
+its need-type mapping, ``test_coverage``, ``doc_control``, ...). To run one,
+give its folder. The tests run in-process against fixture XML/JSON — no Sphinx build, no
 Doxygen, no CMake. It runs in about a second, which is what makes it the right
 tool for iterating on extension logic; it proves nothing about CMake wiring or
 about what actually lands in rendered HTML.

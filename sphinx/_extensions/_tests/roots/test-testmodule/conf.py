@@ -7,7 +7,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))  # _extensions/
 
-_FIXTURES = Path(__file__).resolve().parents[2] / "fixtures"
+_FIXTURES = Path(__file__).resolve().parents[4] / "_fixtures"
 
 # Point the testcase.yaml lookup at a directory that has none, so
 # build_scenario_table() returns [] and these roots stay focused on the

@@ -30,7 +30,7 @@ sphinx-needs==8.3.0
 sphinxcontrib-doxylink==1.13.0
 
 # -- Used by the registry tooling, not by Sphinx directly ----------------------
-# scripts/docrefs.py, scripts/doccheck.py and sphinx/_extensions/rst_builders.py
+# scripts/docrefs.py, scripts/doccheck.py and sphinx/_scripts/rst_builders.py
 # all `import yaml` to read documents.yaml. The engine is unusable without it.
 PyYAML==6.0.3
 

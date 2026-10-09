@@ -20,11 +20,12 @@ import doxygen_parser as dp
 import pytest
 import rst_builders as rb
 import symbol_needs as sn
-from conftest import FIXTURES
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "scripts"))
 
 import docrefs  # noqa: E402
+
+FIXTURES = Path(__file__).resolve().parents[2] / "_fixtures"
 
 _ROOTS = Path(__file__).parent / "roots"
 XML = FIXTURES / "doxygen-symbols"

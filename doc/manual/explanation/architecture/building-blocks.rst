@@ -39,7 +39,8 @@ follows the tool each area serves — see
      subgraph cluster_sphinx {
        label="sphinx/ — payload";
        conf   [label="zdocs_conf.py\nshared configure()"];
-       exts   [label="_extensions/\nxref_builder, doc_control,\nqms_ref, latexinclude,\ntest_module + parsers"];
+       exts   [label="_extensions/\nxref_builder, doc_control,\nqms_ref, latexinclude,\ntest_module, test_coverage"];
+       libs   [label="_scripts/\nparsers, RST builders,\ncoverage adequacy"];
        tmpl   [label="_templates/, _static/"];
      }
 
@@ -57,6 +58,7 @@ follows the tool each area serves — see
      sphinx_cm  -> conf       [label="ZDOCS_CONF_DIR"];
      conf       -> docrefs    [label="imports"];
      conf       -> exts;
+     exts       -> libs       [label="imports"];
      conf       -> tmpl;
      doxygen_cm -> theme      [label="HTML_EXTRA_*"];
      doxygen_cm -> nav;
@@ -93,8 +95,11 @@ whole configuration, including the engine's extension list, and appends the
 consumer's own extensions rather than being replaced by them. The extensions
 divide into presentation (``doc_control``, ``qms_ref``, ``latexinclude``),
 build machinery (``xref_builder``, which provides the stage-one index builder)
-and the test-specification block (``test_module`` with its Doxygen XML parser,
-twister reader and rST builders).
+and the test-specification block (``test_module``, ``test_coverage``,
+``symbol_needs``). ``_extensions/`` holds only Sphinx extensions, each with a
+``setup()``. The plain modules they share are in ``_scripts/``: the Doxygen
+XML parser, the twister reader, the rST builders and the coverage adequacy
+logic.
 
 ``doxygen/`` — the Doxygen payload
 ----------------------------------

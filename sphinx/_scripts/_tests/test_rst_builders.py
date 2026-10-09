@@ -2,9 +2,12 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+from pathlib import Path
+
 import rst_builders as rb
 import yaml
-from conftest import FIXTURES
+
+FIXTURES = Path(__file__).resolve().parents[2] / "_fixtures"
 
 
 def _base_info(**kwargs):

@@ -3,8 +3,11 @@
 # SPDX-License-Identifier: Apache-2.0
 
 
+from pathlib import Path
+
 import twister_reader as tw
-from conftest import FIXTURES
+
+FIXTURES = Path(__file__).resolve().parents[2] / "_fixtures"
 
 XML_PATH = FIXTURES / "twister" / "twister_report.xml"
 TWISTER_JSON = FIXTURES / "twister" / "twister.json"
