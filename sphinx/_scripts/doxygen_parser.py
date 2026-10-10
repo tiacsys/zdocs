@@ -126,6 +126,40 @@ def elem_text(elem: ET.Element | None) -> str:
     return " ".join(" ".join(buf).split())
 
 
+#: The characters that can come directly before an RST inline markup
+#: start-string, and directly after an end-string, besides whitespace
+#: (docutils ``punctuation_chars``, ASCII only). A backslash before a
+#: start-string escapes it, so it is not in the first set.
+_RST_BEFORE_START = frozenset("\"'(-/:<[{")
+_RST_AFTER_END = frozenset("!\"'),-./:;>?\\]}")
+
+
+def _join_inline(parts: list[tuple[str, bool]]) -> str:
+    """Join ``(text, is_markup)`` parts as RST, then collapse whitespace runs.
+
+    RST accepts inline markup only next to whitespace or some punctuation, so
+    a literal directly before ``[]`` ("data_r[]") or a link directly before
+    ``ed`` ("k_msgq_init()ed") shows the raw markup. Where a markup part has
+    another neighbour, an escaped space (``\\ ``) goes between them: RST takes
+    it as the boundary and removes it from the output.
+    """
+    out = ""
+    after_markup = False
+    for text, markup in parts:
+        if not text:
+            continue
+        if out and (
+            (markup and not (out[-1].isspace() or out[-1] in _RST_BEFORE_START))
+            or (after_markup and not (text[0].isspace() or text[0] in _RST_AFTER_END))
+        ):
+            out += "\\ "
+        out += text
+        after_markup = markup
+    # Joined as written, then whitespace runs collapsed. Joining with a space
+    # put one before the punctuation that follows a reference ("k_fifo_put() .").
+    return " ".join(out.split())
+
+
 def para_text(para: ET.Element | None, links: RefLinks | None = None) -> str:
     """Extract inline text from a <para>, rendering code/ref as plain text.
 
@@ -137,38 +171,33 @@ def para_text(para: ET.Element | None, links: RefLinks | None = None) -> str:
     (it is not parsed), so a caller building one passes no ``links``."""
     if para is None:
         return ""
-    parts = []
-    if para.text:
-        parts.append(para.text)
+    parts: list[tuple[str, bool]] = [(para.text or "", False)]
     for child in para:
         if child.tag in ("xrefsect", "simplesect", "orderedlist", "itemizedlist", "parameterlist"):
             pass  # skip structural children
         elif child.tag == "computeroutput":
             ref = child.find("ref[@kindref='member']")
             if ref is not None and (link := ref_to_rst(ref, links)):
-                parts.append(link)
+                parts.append((link, True))
             elif ref is not None:
-                parts.append(f":c:func:`{(ref.text or '').rstrip('()').strip()}`")
+                parts.append((f":c:func:`{(ref.text or '').rstrip('()').strip()}`", True))
             else:
-                parts.append(f"``{elem_text(child)}``")
+                parts.append((f"``{elem_text(child)}``", True))
         elif child.tag in ("bold", "emphasis"):
-            parts.append(elem_text(child))
+            parts.append((elem_text(child), False))
         elif child.tag == "ref":
             kindref = child.get("kindref", "")
             t = (child.text or "").strip()
             if link := ref_to_rst(child, links):
-                parts.append(link)
+                parts.append((link, True))
             elif kindref == "member" and t:
-                parts.append(f":c:func:`{t.rstrip('()').strip()}`")
+                parts.append((f":c:func:`{t.rstrip('()').strip()}`", True))
             else:
-                parts.append(elem_text(child))
+                parts.append((elem_text(child), False))
         else:
-            parts.append(elem_text(child))
-        if child.tail:
-            parts.append(child.tail)
-    # Joined as written, then whitespace runs collapsed. Joining with a space
-    # put one before the punctuation that follows a reference ("k_fifo_put() .").
-    return " ".join("".join(parts).split())
+            parts.append((elem_text(child), False))
+        parts.append((child.tail or "", False))
+    return _join_inline(parts)
 
 
 def list_to_rst_lines(
