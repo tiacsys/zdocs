@@ -389,9 +389,37 @@ requirement. Its body has:
 * The verifying tests, and the fields that the consumer does not declare
   (``verdict``, ``evidence``, ``coverage_run``).
 
-The table cells use the roles ``zd-adq-ok``, ``zd-adq-miss``, ``zd-adq-none``
-and ``zd-adq-loc``. Each gives the text a class of the same name. The zdocs
-need card (:ref:`need-layouts`) colors them.
+The table cells use the roles ``zd-adq-ok``, ``zd-adq-miss`` and
+``zd-adq-none``. Each gives the text a class of the same name. The form and
+place of a body is a paragraph of class ``zd-adq-loc``. The zdocs need card
+(:ref:`need-layouts`) colors them.
+
+The place of a body (``kernel/thread.c:344-358``) links to the first line of
+the body in a Doxygen source listing. The registry key
+``testmodule.coverage_source_docs`` names the Doxygen documents to look in, in
+order; the first that has a listing of the file wins:
+
+.. code-block:: yaml
+
+   test-report:
+     kind: sphinx
+     testmodule:
+       spec: test-specification
+       coverage_source_docs: [dox-detailed-design, dox-api]
+
+The registry gives this list to the build as ``testcoverage_source_docs``, and
+each builder of the document waits for these Doxygen documents. The links
+read the XML of each document (``deploy/xml/<id>/``), so the top-level
+``doxygen_xml: true`` of the registry is necessary. Without it, there is no
+XML and no link. See :doc:`registry-schema`.
+
+The body path is relative to ``testmodule_root``; the Doxygen path can have
+more or fewer directories in front (``zephyr/kernel/thread.c``), if only one
+file of the document matches. A Doxygen document lists every code file with
+``SOURCE_BROWSER = YES``, and only the headers with ``VERBATIM_HEADERS = YES``.
+The default is ``[]``: no links. A ``conf.py`` can also set
+``testcoverage_source_docs``, but then the build does not wait for the
+Doxygen documents.
 
 The id of a need is ``ADQ-<run>/<requirement>``. ``testcoverage_id_prefix``
 sets the prefix. The type, the link and the fields are roles, as for the other

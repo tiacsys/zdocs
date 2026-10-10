@@ -144,7 +144,7 @@ _KINDS = ("sphinx", "doxygen", "external", "sphinx-external", "doxygen-external"
 #: typo'd ``doxygen_src:``) must be a configure-time error, not silently
 #: ignored: silently ignoring it would degrade to "no XML" with no
 #: diagnostic at all.
-_TESTMODULE_KEYS = ("doxygen_source", "api_reference", "spec")
+_TESTMODULE_KEYS = ("doxygen_source", "api_reference", "spec", "coverage_source_docs")
 
 
 #: Allowed keys inside a document's ``symbol_needs:`` block. ``doxygen_source``
@@ -357,6 +357,33 @@ def _validate(data):
                         f"'{ref_kind}', not 'doxygen' — {field} must name a "
                         f"'kind: doxygen' document"
                     )
+
+            # The Doxygen documents whose source listings the testcoverage
+            # directive links the bodies to, in order. A list, so each id is
+            # checked as doxygen_source is; the build waits for each of them.
+            coverage_docs = testmodule.get("coverage_source_docs")
+            if coverage_docs is not None:
+                if not isinstance(coverage_docs, list):
+                    raise ValueError(
+                        f"docrefs: document '{doc_id}' has "
+                        f"testmodule.coverage_source_docs: '{coverage_docs}' "
+                        f"— use a list of 'kind: doxygen' document ids"
+                    )
+                for ref_id in coverage_docs:
+                    ref_meta = data.get("documents", {}).get(ref_id)
+                    if ref_meta is None:
+                        raise ValueError(
+                            f"docrefs: document '{doc_id}' has "
+                            f"testmodule.coverage_source_docs: '{ref_id}', "
+                            f"which does not exist in the registry"
+                        )
+                    ref_kind = ref_meta.get("kind", "sphinx")
+                    if ref_kind != "doxygen":
+                        raise ValueError(
+                            f"docrefs: document '{doc_id}' has "
+                            f"testmodule.coverage_source_docs: '{ref_id}', "
+                            f"which is kind '{ref_kind}', not 'doxygen'"
+                        )
 
             spec_id = testmodule.get("spec")
             if spec_id is not None:
@@ -643,6 +670,7 @@ class Refs:
         deploy_dirs=None,
         testmodule=None,
         symbol_needs=None,
+        doxygen_docs=None,
     ):
         self.reference_groups = reference_groups
         self.intersphinx_mapping = intersphinx_mapping
@@ -666,6 +694,11 @@ class Refs:
         #: loaded). A dict with ``xml_dir`` (the Doxygen document's XML) and
         #: ``doxygen_url`` (its HTML, relative to this document's root).
         self.symbol_needs = symbol_needs
+        #: Every ``kind: doxygen`` document: ``{id: {"xml_dir", "html_url"}}``,
+        #: its XML and its HTML relative to this document's root. For an
+        #: extension that a ``conf.py`` points at a Doxygen document by id
+        #: (``testcoverage_source_docs``).
+        self.doxygen_docs = doxygen_docs or {}
 
 
 def _resolve_external_url(url, external_base_url):
@@ -963,6 +996,7 @@ def load(this_doc=None, registry=None):
             "api_url": rel_urls.get(api_reference, "") if api_reference else "",
             "needs_json": needs_json,
             "tag_urls": tag_urls(documents, deploy, rel_urls),
+            "coverage_source_docs": list(testmodule_block.get("coverage_source_docs") or []),
         }
 
     symbol_needs = None
@@ -973,6 +1007,12 @@ def load(this_doc=None, registry=None):
             "xml_dir": str(deploy / "xml" / source),
             "doxygen_url": rel_urls.get(source, ""),
         }
+
+    doxygen_docs = {
+        doc_id: {"xml_dir": str(deploy / "xml" / doc_id), "html_url": rel_urls[doc_id]}
+        for doc_id, meta in documents.items()
+        if meta.get("kind") == "doxygen" and doc_id in rel_urls
+    }
 
     return Refs(
         reference_groups,
@@ -985,6 +1025,7 @@ def load(this_doc=None, registry=None):
         deploy_dirs=deploy_dirs,
         testmodule=testmodule,
         symbol_needs=symbol_needs,
+        doxygen_docs=doxygen_docs,
     )
 
 
@@ -1271,6 +1312,10 @@ def manifest(registry=None):
         never its own spec), so this cannot cycle; it is deliberately NOT
         generalised to every needs-importer/publisher pair, which CAN cycle
         and is its own, deferred step.
+      * ``testmodule_coverage_source_docs`` — this document's own
+        ``testmodule.coverage_source_docs`` (``[]`` without it). Every
+        stage-2 builder of the document waits for each of these Doxygen
+        documents, as for ``testmodule_doxygen_source``.
       * ``symbol_needs_doxygen_source`` — this document's own
         ``symbol_needs:`` block's ``doxygen_source`` (``None`` without the
         block). Wired like ``testmodule_doxygen_source``: every stage-2
@@ -1294,6 +1339,9 @@ def manifest(registry=None):
                 "remote_tagfile": meta.get("remote-tagfile"),
                 "testmodule_doxygen_source": testmodule.get("doxygen_source"),
                 "testmodule_spec": testmodule.get("spec"),
+                "testmodule_coverage_source_docs": list(
+                    testmodule.get("coverage_source_docs") or []
+                ),
                 "symbol_needs_doxygen_source": (meta.get("symbol_needs") or {}).get(
                     "doxygen_source"
                 ),

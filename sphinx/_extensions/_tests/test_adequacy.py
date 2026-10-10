@@ -37,12 +37,16 @@ to TSPEC-9. Keys built from (scenario, function) do not.
 
 import json
 import subprocess
+import sys
 from pathlib import Path
 
 import adequacy as A
 import pytest
 import test_coverage as tc
 from rst_builders import _DEFAULT_NEED_NAMES
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "scripts"))
+import docrefs  # noqa: E402
 
 OBJ_C = """\
 #include <zephyr/kernel.h>
@@ -494,12 +498,32 @@ def test_adequacy_rst_gives_one_row_per_body(tree):
     # The function whose body was read, its form and place, the own lines of
     # the lines any test ran, and the other test cases.
     assert "      * - ``z_impl_k_obj_init``" in rst
-    assert f":zd-adq-loc:`implementation, kernel/obj.c:{IMPL[0]}-{IMPL[1]}`" in rst
+    assert (
+        "          .. rst-class:: zd-adq-loc\n\n"
+        f"          implementation, kernel/obj.c:{IMPL[0]}-{IMPL[1]}\n"
+    ) in rst
     assert ":zd-adq-none:`no test ran it`" in rst
     assert "      * - ``z_vrfy_k_obj_init``" in rst
     assert ":zd-adq-ok:`3 of 3 lines`" in rst
     # The own tests run every body they should: no list of other tests.
     assert "Other tests that run" not in rst
+
+
+def test_adequacy_rst_links_the_place_of_a_body_to_its_listing(tree):
+    run, results, _, _ = _assess(tree)
+    calls = []
+
+    def body_url(path, line):
+        calls.append((path, line))
+        return f"dd/{path}#l{line}" if path == "kernel/obj.c" else ""
+
+    rst = "\n".join(tc.build_adequacy_rst("R-VRFY", results["R-VRFY"], run, body_url=body_url))
+    a, b = IMPL
+    assert f"implementation, `kernel/obj.c:{a}-{b} <dd/kernel/obj.c#l{a}>`__" in rst
+    assert ("kernel/obj.c", a) in calls
+    rst = "\n".join(tc.build_adequacy_rst("R-INLINE", results["R-INLINE"], run, body_url=body_url))
+    a, b = INLINE
+    assert f"static inline, include/zephyr/sys/k_inline.h:{a}-{b}\n" in rst  # no listing
 
 
 def test_adequacy_rst_names_the_other_tests_of_a_missed_body(tree):
@@ -632,6 +656,106 @@ def test_directive_reads_the_consumers_file_set(tree, make_app, tmp_path):
     html = (Path(app.outdir) / "index.html").read_text()
     assert "Files searched for bodies" in html
     assert "include/zephyr/sys/**/*.h" in html and "kernel/*.c" not in html
+
+
+def _doxygen_run(path, files):
+    """A Doxygen XML dir with SOURCE_BROWSER = YES and ``files`` ({refid: path})."""
+    path.mkdir()
+    (path / "Doxyfile.xml").write_text(
+        "<doxyfile><option id='SOURCE_BROWSER'><value>YES</value></option></doxyfile>"
+    )
+    (path / "index.xml").write_text("<doxygenindex>" + "".join(
+        f"<compound refid='{r}' kind='file'><name>{Path(f).name}</name></compound>"
+        for r, f in files.items()
+    ) + "</doxygenindex>")
+    for r, f in files.items():
+        (path / f"{r}.xml").write_text(
+            f"<doxygen><compounddef id='{r}' kind='file'><location file='{f}'/>"
+            "</compounddef></doxygen>"
+        )
+    return path
+
+
+def test_directive_links_each_body_to_its_source_listing(tree, make_app, tmp_path):
+    root, _, run_dir, needs_json = tree
+    xml = _doxygen_run(tmp_path / "dd-xml", {"zephyr_2kernel_2plain_8c": "zephyr/kernel/plain.c"})
+    src = tmp_path / "doc"
+    src.mkdir()
+    (src / "conf.py").write_text(_CONF.format(
+        ext=str(Path(A.__file__).parent), needs=str(needs_json), run=str(run_dir),
+        root=str(root),
+    ) + (
+        f"zdocs_doxygen_docs = {{'dd': {{'xml_dir': {str(xml)!r}, 'html_url': '../dd'}}}}\n"
+        "testcoverage_source_docs = ['nope', 'dd']\n"
+    ))
+    (src / "index.rst").write_text("Adequacy\n########\n\n.. testcoverage::\n")
+    app = make_app("html", srcdir=src)
+    app.build()
+    html = (Path(app.outdir) / "index.html").read_text()
+    # The body path is from the tree root, Doxygen's from one level up.
+    assert f'href="../dd/zephyr_2kernel_2plain_8c_source.html#l{PLAIN[0]:05d}"' in html
+    log = app._warning.getvalue()
+    assert "testcoverage_source_docs names 'nope'" in log
+    inputs = set(app.env.zdocs_report_inputs["index"])
+    for name in ("Doxyfile.xml", "index.xml", "zephyr_2kernel_2plain_8c.xml"):
+        assert str(xml / name) in inputs
+
+
+# ---------------------------------------------------------------------------
+# Registry: testmodule.coverage_source_docs
+# ---------------------------------------------------------------------------
+
+REGISTRY = """\
+groups:
+  - id: reference
+    title: Reference
+documents:
+  report:
+    kind: sphinx
+    group: reference
+    builders: [html]
+    testmodule:
+      coverage_source_docs: [dox-dd, dox-api]
+  dox-dd:
+    kind: doxygen
+    group: reference
+  dox-api:
+    kind: doxygen
+    group: reference
+"""
+
+
+def _registry(tmp_path, text=REGISTRY):
+    path = tmp_path / "documents.yaml"
+    path.write_text(text)
+    return path
+
+
+def test_registry_gives_the_coverage_source_docs(tmp_path, monkeypatch):
+    monkeypatch.setenv("OUTPUT_DIR", str(tmp_path / "deploy" / "html" / "report"))
+    refs = docrefs.load("report", _registry(tmp_path))
+    assert refs.testmodule["coverage_source_docs"] == ["dox-dd", "dox-api"]
+    assert set(refs.doxygen_docs) == {"dox-dd", "dox-api"}
+
+
+def test_manifest_names_the_coverage_source_docs(tmp_path):
+    manifest = docrefs.manifest(_registry(tmp_path))
+    entries = {e["id"]: e["testmodule_coverage_source_docs"] for e in manifest}
+    assert entries == {"report": ["dox-dd", "dox-api"], "dox-dd": [], "dox-api": []}
+
+
+@pytest.mark.parametrize(
+    ("after", "message"),
+    [
+        ("coverage_source_docs: dox-dd", "use a list"),
+        ("coverage_source_docs: [nowhere]", "does not exist"),
+        ("coverage_source_docs: [report]", "not 'doxygen'"),
+    ],
+)
+def test_invalid_coverage_source_docs_fail_validation(tmp_path, after, message):
+    text = REGISTRY.replace("coverage_source_docs: [dox-dd, dox-api]", after)
+    with pytest.raises(ValueError, match=message):
+        docrefs.manifest(_registry(tmp_path, text))
 
 
 def test_directive_without_a_run_says_so(make_app, tmp_path):

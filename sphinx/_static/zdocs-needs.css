@@ -315,7 +315,7 @@ table.need.need.need[class*=" needs_layout_zdocs"] tr.meta :is(.needs_test_funct
 /*
  * The body table of an adequacy need (testcoverage): one row per body of a
  * satisfying symbol. The roles zd-adq-ok / -miss / -none give the lines that
- * the own tests ran as a chip; zd-adq-loc is the form and place of the body.
+ * the own tests ran as a chip; p.zd-adq-loc is the form and place of the body.
  */
 html.writer-html5 .rst-content table.need.need.need[class*=" needs_layout_zdocs"] tr.content table.zd-adq-bodies {
     width: 100%;
@@ -361,7 +361,7 @@ html.writer-html5 .rst-content table.need.need.need[class*=" needs_layout_zdocs"
     font-size: 0.95em;
     font-weight: 600;
 }
-table.need.need.need[class*=" needs_layout_zdocs"] .zd-adq-loc {
+html.writer-html5 .rst-content table.need.need.need[class*=" needs_layout_zdocs"] tr.content table.zd-adq-bodies td p.zd-adq-loc {
     color: var(--zd-label);
     font-family: var(--zd-mono);
     font-size: 0.85em;

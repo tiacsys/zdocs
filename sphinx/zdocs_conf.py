@@ -427,11 +427,18 @@ def configure(
         # Consumed by the cross-document navigation in the page template.
         namespace["html_context"] = {"reference_groups": refs.reference_groups}
 
+    if refs is not None:
+        # The XML and HTML of each Doxygen document, by registry id
+        # (testcoverage_source_docs names some of them).
+        namespace["zdocs_doxygen_docs"] = refs.doxygen_docs
     if testmodule is not None:
         namespace["testmodule_xml_dir"] = testmodule["xml_dir"]
         namespace["testspec_doxygen_url"] = testmodule["doxygen_url"]
         namespace["api_doxygen_url"] = testmodule["api_url"]
         namespace["testmodule_tag_urls"] = testmodule.get("tag_urls", {})
+        # The registry's testmodule.coverage_source_docs, so the build also
+        # waits for these Doxygen documents.
+        namespace["testcoverage_source_docs"] = testmodule.get("coverage_source_docs", [])
         namespace["testspec_needs_json"] = testmodule["needs_json"]
         namespace["testmodule_root"] = str(project_base) if project_base else ""
         namespace["twister_output_dir"] = os.environ.get("ZDOCS_TWISTER_OUT", "")
