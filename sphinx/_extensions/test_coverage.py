@@ -27,6 +27,7 @@ from adequacy import (
 from docutils import nodes
 from docutils.parsers.rst import Directive, directives
 from docutils.statemachine import ViewList
+from doxygen_parser import SourcePages
 from input_tracking import _note_input
 from needs_fields import field_type
 from rst_builders import _need_name
@@ -58,8 +59,9 @@ _BODY_FORM = {"impl": "implementation", "vrfy": "verifier", "def": "definition",
               "inline": "static inline"}
 
 #: The roles of the body table cells: each gives an inline node with the
-#: role name as its class, for ``zdocs-needs.css``.
-CELL_ROLES = ("zd-adq-ok", "zd-adq-miss", "zd-adq-none", "zd-adq-loc")
+#: role name as its class, for ``zdocs-needs.css``. The place of a body is a
+#: paragraph of class ``zd-adq-loc``.
+CELL_ROLES = ("zd-adq-ok", "zd-adq-miss", "zd-adq-none")
 
 #: The engine fields that the body shows when the consumer does not declare them.
 _BODY_FALLBACK = (("verdict", "Verdict"), ("evidence", "Evidence"),
@@ -178,7 +180,7 @@ def _other_count(d, run):
 
 
 def build_adequacy_rst(req, res, run, need_names=None, fields=(), prefix="ADQ", layout="",
-                       title=None):
+                       title=None, body_url=None):
     """RST lines for the adequacy need of ``req`` (``res`` from `adequacy.assess`).
 
     ``layout``: the sphinx-needs layout of the need, if not empty. ``title``:
@@ -190,6 +192,9 @@ def build_adequacy_rst(req, res, run, need_names=None, fields=(), prefix="ADQ", 
     test of the run ran, and the number of other test cases that ran it. For
     a body that the own tests never run, the body names the other tests that
     do. A field that the consumer does not declare is in the body too.
+
+    ``body_url(file, line)``: the source listing of a body at its first line,
+    or ``""``; the place of the body links to it.
     """
     values = {
         "verdict": res["verdict"],
@@ -224,11 +229,15 @@ def build_adequacy_rst(req, res, run, need_names=None, fields=(), prefix="ADQ", 
             name = _BODY_NAME[d["variant"]].format(d["sym"])
             others = _other_count(d, run)
             others = f"{others} test case{'s' if others != 1 else ''}" if others else "none"
+            place = f"{d['file']}:{d['a']}-{d['b']}"
+            url = body_url(d["file"], d["a"]) if body_url else ""
+            place = f"`{place} <{url}>`__" if url else place
             lines += [
                 f"      * - ``{name}``",
                 "",
-                f"          :zd-adq-loc:`{_BODY_FORM[d['variant']]}, "
-                f"{d['file']}:{d['a']}-{d['b']}`",
+                "          .. rst-class:: zd-adq-loc",
+                "",
+                f"          {_BODY_FORM[d['variant']]}, {place}",
                 f"        - {_own_cell(d)}",
                 f"        - {others}",
             ]
@@ -257,12 +266,13 @@ def build_adequacy_rst(req, res, run, need_names=None, fields=(), prefix="ADQ", 
 
 def build_coverage_rst(
     results, run, source, impl_loc, need_names=None, fields=(), prefix="ADQ", layout="",
-    impl_files=IMPL_PATTERNS, titles=None,
+    impl_files=IMPL_PATTERNS, titles=None, body_url=None,
 ):
     """RST lines for the whole directive: run summary, distribution, needs by verdict.
 
     ``impl_files``: the body files that the run searched, for the summary.
     ``titles``: the title of each requirement, for the title of its need.
+    ``body_url``: see `build_adequacy_rst`.
     """
     counts = Counter(r["verdict"] for r in results.values())
     symbols = sorted({s for r in results.values() for s in r["symbols"]})
@@ -306,7 +316,7 @@ def build_coverage_rst(
         for req in reqs:
             lines += build_adequacy_rst(
                 req, results[req], run, need_names, fields, prefix, layout,
-                (titles or {}).get(req),
+                (titles or {}).get(req), body_url,
             )
     return lines
 
@@ -335,6 +345,36 @@ class TestCoverageDirective(Directive):
 
     def _paragraph(self, text):
         return [nodes.paragraph(text=text)]
+
+    def _body_url(self, env):
+        """``(file, line) -> URL`` of the first source listing that has the file,
+        of the Doxygen documents in ``testcoverage_source_docs``, in that order,
+        and the `SourcePages` it reads (their inputs are noted after the use)."""
+        app, config = env.app, env.app.config
+        docs = getattr(config, "zdocs_doxygen_docs", {}) or {}
+        page_prefix = "../" * (len(Path(env.docname).parts) - 1)
+        cache = app.__dict__.setdefault("_testcoverage_source_pages", {})
+        listings = []
+        for doc_id in getattr(config, "testcoverage_source_docs", []) or []:
+            doc = docs.get(doc_id)
+            if doc is None:
+                logger.warning(
+                    f"testcoverage: testcoverage_source_docs names '{doc_id}', "
+                    f"which is no kind: doxygen document of the registry"
+                )
+                continue
+            if doc_id not in cache:
+                cache[doc_id] = SourcePages(doc["xml_dir"])
+            listings.append((cache[doc_id], page_prefix + doc["html_url"]))
+
+        def body_url(path, line):
+            for pages, html_dir in listings:
+                url = pages.url(html_dir, path, line, tail=True)
+                if url:
+                    return url
+            return ""
+
+        return (body_url if listings else None), [pages for pages, _ in listings]
 
     def run(self):
         env = self.state.document.settings.env
@@ -392,13 +432,20 @@ class TestCoverageDirective(Directive):
             role for role in ADEQUACY_FIELD_ROLES
             if field_type(env, _need_name(need_names, role)) is not None
         }
+        body_url, source_pages = self._body_url(env)
         lines = build_coverage_rst(
             results, run, source, impl_loc, need_names, fields,
             getattr(config, "testcoverage_id_prefix", "ADQ"),
             self.options.get("layout", "").strip(),
             impl_files,
             need_titles(json_paths),
+            body_url,
         )
+        # The listings are shared by all documents: this notes the files that
+        # the lookups of all documents so far read, a superset of this one's.
+        for pages in source_pages:
+            for path in sorted(pages.inputs):
+                _note_input(env, path)
         dump_dir = getattr(config, "dump_generated_rst", "")
         if dump_dir:
             out = Path(dump_dir)
@@ -428,6 +475,10 @@ def setup(app):
     app.add_config_value("testcoverage_id_prefix", "ADQ", "env")
     # Glob patterns of the files that hold the bodies, relative to testmodule_root.
     app.add_config_value("testcoverage_impl_files", list(IMPL_PATTERNS), "env")
+    # The Doxygen documents (registry ids) whose source listings the place of
+    # a body links to: the first that has the file.
+    app.add_config_value("testcoverage_source_docs", [], "env")
+    app.add_config_value("zdocs_doxygen_docs", {}, "env")
     app.add_config_value("testcoverage_need_types", {"adequacy": "adequacy"}, "env")
     app.add_config_value("testcoverage_need_links", {"assesses": "assesses"}, "env")
     # Field roles -> names. A field is set only where the consumer declares it.

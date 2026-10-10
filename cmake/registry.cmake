@@ -316,6 +316,21 @@ function(add_docs_from_registry)
         endforeach()
       endif()
 
+      # testmodule.coverage_source_docs: the testcoverage directive reads the
+      # source listings of these Doxygen documents (deploy/xml/<id>/), so the
+      # same stage-2 edge, once per document.
+      string(JSON _zdocs_coverage_n LENGTH "${_zdocs_entry}" "testmodule_coverage_source_docs")
+      if(_zdocs_coverage_n GREATER 0)
+        math(EXPR _zdocs_coverage_last "${_zdocs_coverage_n} - 1")
+        foreach(_zdocs_coverage_i RANGE ${_zdocs_coverage_last})
+          string(JSON _zdocs_coverage_dox GET "${_zdocs_entry}"
+            "testmodule_coverage_source_docs" ${_zdocs_coverage_i})
+          foreach(_zdocs_builder ${_zdocs_builders})
+            add_dependencies(${_zdocs_id}-${_zdocs_builder} ${_zdocs_coverage_dox})
+          endforeach()
+        endforeach()
+      endif()
+
       string(JSON _zdocs_testmodule_spec GET "${_zdocs_entry}" "testmodule_spec")
       if(NOT _zdocs_testmodule_spec STREQUAL "")
         add_dependencies(${_zdocs_id}-index ${_zdocs_testmodule_spec}-index)

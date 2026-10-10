@@ -324,6 +324,16 @@ Each entry in ``documents:``, keyed by its id:
       It shows as a literal in the "See also" line, without a link. The
       line has the targets of all ``@see`` lines of the test, in order.
 
+   ``coverage_source_docs``
+      A list of ``kind: doxygen`` document ids. The ``testcoverage``
+      directive links the place of each body to the source listing of the
+      first of these documents that has the file (see
+      :doc:`directives-and-roles`). Every stage-2 builder of this document
+      waits for each of them, as for ``doxygen_source``. The links read the
+      XML (``deploy/xml/<id>/``), so the top-level ``doxygen_xml: true`` is
+      necessary. A value that is not a list, or an id that is not an
+      existing ``kind: doxygen`` document, is a configure-time error.
+
    ``spec``
       Id of the sphinx document whose exported needs a ``testreport`` document
       correlates against. Must exist, and must carry ``needs: {source: json}``
