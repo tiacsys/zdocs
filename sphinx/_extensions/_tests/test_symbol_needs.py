@@ -99,6 +99,18 @@ def test_symbol_need_body_has_kind_link_and_file():
     assert "**Declared in:** ``queue.h (line 39)``" in rst
 
 
+def test_declared_in_links_the_header_listing():
+    # SOURCE_BROWSER = NO, VERBATIM_HEADERS = YES: Doxygen lists the headers.
+    pages = dp.SourcePages(XML)
+    info = dp.parse_symbol(_member("K_QUEUE_MAX"), "api", pages)
+    assert info["source_url"] == "api/queue_8h_source.html#l00039"
+    rst = rb.build_symbol_need_rst(info)
+    assert "**Declared in:** `queue.h (line 39) <api/queue_8h_source.html#l00039>`__" in rst
+    assert any(
+        "<api/queue_8h_source.html#l00019>`__" in line for line in sn.symbol_needs_rst(XML, "api")
+    )
+
+
 # ---------------------------------------------------------------------------
 # symbol_needs_rst
 # ---------------------------------------------------------------------------
@@ -133,6 +145,8 @@ def test_every_read_file_is_reported_as_input():
         "queue_8h.xml",
         "req_8dox.xml",
         "group__queue__apis.xml",
+        "Doxyfile.xml",
+        "index.xml",
     }
 
 

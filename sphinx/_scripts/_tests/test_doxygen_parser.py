@@ -614,3 +614,105 @@ def test_parse_memberdef_reads_every_see_section():
     info = dp.parse_memberdef(md, "group__s", SPEC, API)
     assert "k_fifo_get()" in info["see_rst"]
     assert info["see_rst"].endswith(", ``irq_offload()``")
+
+
+# ---------------------------------------------------------------------------
+# SourcePages: the source listing of a test's file, for its Source link
+# ---------------------------------------------------------------------------
+
+_DOXYFILE = (
+    "<doxyfile><option id='SOURCE_BROWSER' default='no' type='bool'>"
+    "<value>{}</value></option></doxyfile>"
+)
+
+
+def _run(tmp_path, source_browser="YES", files=None):
+    """A Doxygen XML dir with ``files`` ({refid: path}) as file compounds."""
+    files = files or {}
+    if source_browser is not None:
+        (tmp_path / "Doxyfile.xml").write_text(_DOXYFILE.format(source_browser))
+    compounds = "".join(
+        f"<compound refid='{refid}' kind='file'><name>{Path(path).name}</name></compound>"
+        for refid, path in files.items()
+    )
+    (tmp_path / "index.xml").write_text(f"<doxygenindex>{compounds}</doxygenindex>")
+    for refid, path in files.items():
+        (tmp_path / f"{refid}.xml").write_text(
+            f"<doxygen><compounddef id='{refid}' kind='file'>"
+            # A member's location first: only the compound's own location counts.
+            f"<sectiondef><memberdef><location file='other/{Path(path).name}'/></memberdef>"
+            f"</sectiondef><location file='{path}'/></compounddef></doxygen>"
+        )
+    return tmp_path
+
+
+def test_source_pages_take_the_file_compound_of_the_path(tmp_path):
+    # Two files with one name: the path decides, not Doxygen's escaping.
+    pages = dp.SourcePages(_run(tmp_path, files={
+        "a_2src_2main_8c": "tests/a/src/main.c",
+        "b_2src_2main_8c": "tests/b/src/main.c",
+    }))
+    assert pages.url("../spec", "tests/b/src/main.c", "290") == (
+        "../spec/b_2src_2main_8c_source.html#l00290"
+    )
+    assert pages.url("../spec", "tests/a/src/main.c", 7) == (
+        "../spec/a_2src_2main_8c_source.html#l00007"
+    )
+    assert pages.url("../spec", "tests/c/src/main.c", 7) == ""
+    assert pages.url("../spec", "tests/a/src/main.c", "") == (
+        "../spec/a_2src_2main_8c_source.html"
+    )
+
+
+def test_source_pages_report_the_files_they_read(tmp_path):
+    xml = _run(tmp_path, files={"a_8c": "src/a.c", "b_8c": "src/b.c"})
+    pages = dp.SourcePages(xml)
+    assert pages.inputs == {xml / "Doxyfile.xml", xml / "index.xml"}
+    pages.url("html", "src/a.c", 1)
+    assert pages.inputs == {xml / "Doxyfile.xml", xml / "index.xml", xml / "a_8c.xml"}
+
+
+def test_source_pages_of_headers_only(tmp_path):
+    # VERBATIM_HEADERS (the default) without SOURCE_BROWSER: headers only.
+    pages = dp.SourcePages(_run(tmp_path, "NO", {"k_8h": "inc/k.h", "k_8c": "src/k.c"}))
+    assert pages.url("d", "inc/k.h", 3) == "d/k_8h_source.html#l00003"
+    assert pages.url("d", "src/k.c", 3) == ""
+
+
+def test_source_pages_by_the_tail_of_the_path(tmp_path):
+    pages = dp.SourcePages(_run(tmp_path, files={
+        "a_8c": "zephyr/kernel/thread.c",
+        "b_8h": "zephyr/kernel.h",
+        "c_8h": "zephyr/sys/util.h",
+        "d_8h": "zephyr/arch/util.h",
+    }))
+    # The other root: longer or shorter than Doxygen's path.
+    assert pages.refid("kernel/thread.c") == ""
+    assert pages.refid("kernel/thread.c", tail=True) == "a_8c"
+    assert pages.refid("include/zephyr/kernel.h", tail=True) == "b_8h"
+    assert pages.refid("include/zephyr/sys/util.h", tail=True) == "c_8h"
+    # Two files end the same way: no guess.
+    assert pages.refid("util.h", tail=True) == ""
+    # A name is not a tail of a longer name.
+    assert pages.refid("ernel/thread.c", tail=True) == ""
+
+
+@pytest.mark.parametrize("source_browser", ["NO", None])
+def test_no_source_pages_without_source_browser(tmp_path, source_browser):
+    # NO, or a Doxygen that writes no Doxyfile.xml: no listing of a C file.
+    pages = dp.SourcePages(_run(tmp_path, source_browser, {"m_8c": "m.c"}))
+    assert pages.url("../spec", "m.c", 1) == ""
+
+
+def test_parse_memberdef_links_the_source_listing(tmp_path):
+    pages = dp.SourcePages(_run(tmp_path, files={"t_8c": "tests/t.c"}))
+    md = ET.fromstring(
+        "<memberdef kind='function' id='group__s_1a1'><name>test_x</name>"
+        "<location file='tests/t.c' line='12' bodyfile='tests/t.c' bodystart='14'/>"
+        "</memberdef>"
+    )
+    info = dp.parse_memberdef(md, "group__s", SPEC, API, source_pages=pages)
+    assert info["source_file"] == "t.c (line 14)"
+    assert info["source_url"] == f"{SPEC}/t_8c_source.html#l00014"
+    assert info["doxygen_url"] == f"{SPEC}/group__s.html#a1"
+    assert dp.parse_memberdef(md, "group__s", SPEC, API)["source_url"] == ""

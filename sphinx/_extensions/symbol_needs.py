@@ -21,7 +21,7 @@ from pathlib import Path
 from docutils import nodes
 from docutils.parsers.rst import Directive
 from docutils.statemachine import ViewList
-from doxygen_parser import load_group_index, parse_symbol
+from doxygen_parser import SourcePages, load_group_index, parse_symbol
 from input_tracking import _note_input
 from needs_fields import depends_field
 from rst_builders import build_symbol_need_rst
@@ -65,9 +65,12 @@ def symbol_needs_rst(
     Doxygen defines it, however many compounds list it. ``note_input`` is
     called with every XML file read. ``depends_field(conditions, subject)``
     decides whether a need gets the ``depends_on`` field
-    (`needs_fields.depends_field`); without it, none does.
+    (`needs_fields.depends_field`); without it, none does. "Declared in"
+    links to the source listing of the run, if it wrote one
+    (`doxygen_parser.SourcePages`).
     """
     xml_dir = Path(xml_dir)
+    source_pages = SourcePages(xml_dir)
     lines, seen = [], set()
     for refid, name in _compounds(xml_dir, group):
         xml = xml_dir / f"{refid}.xml"
@@ -82,7 +85,7 @@ def symbol_needs_rst(
             if md.find("satisfies") is None or md.get("id") in seen:
                 continue
             seen.add(md.get("id"))
-            info = parse_symbol(md, html_dir)
+            info = parse_symbol(md, html_dir, source_pages)
             with_depends = bool(depends_field) and depends_field(
                 info["depends_on"], f"symbolneeds: {info['name']}"
             )
@@ -94,6 +97,9 @@ def symbol_needs_rst(
             title = cdef.findtext("title") or name
             lines += [title, "-" * len(title), ""]
         lines += blocks
+    if note_input:
+        for path in sorted(source_pages.inputs):
+            note_input(path)
     return lines
 
 

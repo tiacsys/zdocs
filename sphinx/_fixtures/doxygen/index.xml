@@ -9,4 +9,10 @@
   <compound refid="group__queue__procedures" kind="group">
     <name>queue_procedures</name>
   </compound>
+  <compound refid="test__queue_8c" kind="file">
+    <name>test_queue.c</name>
+  </compound>
+  <compound refid="test__helpers_8c" kind="file">
+    <name>test_helpers.c</name>
+  </compound>
 </doxygenindex>

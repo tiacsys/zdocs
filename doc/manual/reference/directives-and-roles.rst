@@ -105,6 +105,13 @@ of ``testcase.yaml``, ``tests.yaml`` and ``sample.yaml`` that exists. Every
 ``ZTEST``/``ZTEST_SUITE``/... in the named group and its inner suite/procedure
 groups becomes one need each — nothing is written by hand per test case.
 
+The Source line of a test case or a procedure (``main.c (line 290)``) links
+to the Doxygen source listing of its file, at that line, if the test
+specification's Doxyfile sets ``SOURCE_BROWSER = YES``. zdocs reads the
+setting from the ``Doxyfile.xml`` that Doxygen writes beside the XML. Without
+the listings, the Source line links to the member's documentation in the
+group page.
+
 A test case need's ``suite`` field is its inner suite group's name, so name
 that group after the ``ZTEST_SUITE``: ``testreport`` finds the test case for a
 twister result by the pair (suite, function). Two test modules that declare the
@@ -444,8 +451,11 @@ Each need is titled with the symbol name and has the id
 ``<TYPE>-<symbol>``, where ``<TYPE>`` is the need type's name in upper case
 (``IMPL-k_queue_init``). Its body gives the kind, the brief, a link to the
 symbol's Doxygen page and the file it is declared in; no custom field is
-needed for them. The need type and link are engine roles, named by the
-consumer like the test directives' (ADR-0009):
+needed for them. "Declared in" links to the declaration's line in Doxygen's
+source listing, if the run wrote one: with ``SOURCE_BROWSER = YES`` for every
+file, with ``VERBATIM_HEADERS = YES`` (the Doxygen default) for the headers.
+The need type and link are engine roles, named by the consumer like the test
+directives' (ADR-0009):
 
 .. code-block:: python
 
