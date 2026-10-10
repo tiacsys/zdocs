@@ -303,6 +303,15 @@ def test_the_references_of_a_test_case_are_in_the_container_in_order():
     assert rst.index("The queue keeps the order.") < rst.index(".. container:: need-refs")
 
 
+def test_the_source_of_a_test_case_is_its_listing_if_there_is_one():
+    info = _base_info(source_url="/testspec/html/test__queue_8c_source.html#l00042")
+    _, refs = _container(rb.build_need_rst(info, "kernel.queue"))
+    assert refs == [
+        "**Source:** `test_queue.c (line 42) "
+        "</testspec/html/test__queue_8c_source.html#l00042>`__",
+    ]
+
+
 def test_a_test_case_without_references_has_no_container():
     rst = rb.build_need_rst(_base_info(source_file="", doxygen_url=""), "kernel.queue")
     assert "need-refs" not in rst

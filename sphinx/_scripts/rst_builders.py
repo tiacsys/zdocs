@@ -178,8 +178,10 @@ def build_need_rst(
         lines.append("")
 
     refs = list(depends_body)
-    if source_file and doxygen_url:
-        refs.append(f"**Source:** `{source_file} <{doxygen_url}>`__")
+    # The source listing at the line, else the member's documentation page.
+    source_link = info.get("source_url") or doxygen_url
+    if source_file and source_link:
+        refs.append(f"**Source:** `{source_file} <{source_link}>`__")
     elif source_file:
         refs.append(f"**Source:** {source_file}")
     if see_rst:
@@ -197,15 +199,19 @@ def build_procedure_need_rst(
     api_html_dir,
     need_names=None,
     tag_dirs=None,
+    source_pages=None,
 ):
     """Build a test_procedure needs item for one shared test procedure.
 
     ``tag_dirs``: where a tag-file reference links (`doxygen_parser.RefLinks.tags`).
+    ``source_pages``: the source listings (`doxygen_parser.SourcePages`); with
+    them, Source links to the listing at the line.
     """
     from doxygen_parser import (
         RefLinks,
         detail_rst_lines,
         extract_params,
+        member_source,
         para_text,
         see_to_rst,
     )
@@ -219,18 +225,12 @@ def build_procedure_need_rst(
     if not title:
         title = name
 
-    loc = memberdef.find("location")
-    source_file = ""
-    if loc is not None:
-        fpath = loc.get("bodyfile") or loc.get("file", "")
-        line = loc.get("bodystart") or loc.get("line", "")
-        if fpath:
-            source_file = f"{Path(fpath).name} (line {line})"
+    source_file, source_url = member_source(memberdef, testspec_html_dir, source_pages)
 
     member_id = memberdef.get("id", "")
     prefix = proc_compound_id + "_1"
     anchor = member_id[len(prefix) :] if member_id.startswith(prefix) else member_id
-    doxygen_url = f"{testspec_html_dir}/{proc_compound_id}.html#{anchor}"
+    doxygen_url = source_url or f"{testspec_html_dir}/{proc_compound_id}.html#{anchor}"
 
     dd = memberdef.find("detaileddescription")
     detail_lines = []
@@ -397,7 +397,9 @@ def build_symbol_need_rst(info, need_names=None, depends_field=False):
         head = f"`{kind.capitalize()} {name} <{info['doxygen_url']}>`__"
     lines += [f"   {head}" + (f" — {info['brief']}" if info["brief"] else ""), ""]
     refs = list(depends_body)
-    if info["source_file"]:
+    if info["source_file"] and info.get("source_url"):
+        refs.append(f"**Declared in:** `{info['source_file']} <{info['source_url']}>`__")
+    elif info["source_file"]:
         refs.append(f"**Declared in:** ``{info['source_file']}``")
     lines += _refs_rst(refs)
     return "\n".join(lines)

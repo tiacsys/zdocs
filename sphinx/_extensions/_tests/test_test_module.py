@@ -14,6 +14,7 @@ import pytest
 import test_module as tm
 from docutils import nodes
 from docutils.utils import Reporter
+from doxygen_parser import SourcePages
 from twister_reader import SpecLookup
 
 FIXTURES = Path(__file__).resolve().parents[2] / "_fixtures"
@@ -337,6 +338,28 @@ def test_build_proc_group_rst_heading():
     assert lines[1] == "-" * len("Queue Test Procedures")
 
 
+def test_build_suite_rst_links_the_source_listing():
+    lines = tm._build_suite_rst(
+        "group__queue__api", DOXYGEN, "../testspec/html", "../api/html", "tests/kernel/queue",
+        source_pages=SourcePages(DOXYGEN),
+    )
+    text = "\n".join(lines)
+    assert "`test_queue.c (line 42) <../testspec/html/test__queue_8c_source.html#l00042>`__" in text
+    # Without the listings: the member's page, as before.
+    lines = tm._build_suite_rst(
+        "group__queue__api", DOXYGEN, "../testspec/html", "../api/html", "tests/kernel/queue"
+    )
+    assert "<../testspec/html/group__queue__api.html#a001>`__" in "\n".join(lines)
+
+
+def test_build_proc_group_rst_links_the_source_listing():
+    lines = tm._build_proc_group_rst(
+        "group__queue__procedures", DOXYGEN, "../testspec/html", "../api/html",
+        source_pages=SourcePages(DOXYGEN),
+    )
+    assert "<../testspec/html/test__helpers_8c_source.html#l00010>`__" in "\n".join(lines)
+
+
 def test_build_proc_group_rst_contains_procedure_ids():
     lines = tm._build_proc_group_rst(
         "group__queue__procedures", DOXYGEN, "../testspec/html", "../api/html"
@@ -397,6 +420,17 @@ def test_testmodule_directive_generates_test_case_ids(app):
     html = (Path(app.outdir) / "index.html").read_text()
     assert "TSPEC-QUEUE-API-001" in html
     assert "TSPEC-QUEUE-API-002" in html
+
+
+@pytest.mark.sphinx("html", srcdir=str(_ROOTS / "test-testmodule"))
+def test_testmodule_directive_links_the_source_listing(app):
+    app.build()
+    html = (Path(app.outdir) / "index.html").read_text()
+    assert 'href="testspec/test__queue_8c_source.html#l00042"' in html
+    xml_dir = Path(app.config.testmodule_xml_dir)
+    inputs = set(app.env.zdocs_report_inputs["index"])
+    for name in ("Doxyfile.xml", "index.xml", "test__queue_8c.xml"):
+        assert str(xml_dir / name) in inputs
 
 
 @pytest.mark.sphinx("html", srcdir=str(_ROOTS / "test-testmodule"))

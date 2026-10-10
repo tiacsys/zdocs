@@ -1,0 +1,5 @@
+<?xml version='1.0' encoding='UTF-8' standalone='no'?>
+<doxyfile version="1.16.1" xml:lang="en-US">
+  <option  id='PROJECT_NAME' default='no' type='string'><value><![CDATA["Queue tests"]]></value></option>
+  <option  id='SOURCE_BROWSER' default='no' type='bool'><value>YES</value></option>
+</doxyfile>

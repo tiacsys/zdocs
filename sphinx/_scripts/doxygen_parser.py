@@ -27,6 +27,8 @@ __all__ = [
     "SymbolInfo",
     "parse_symbol",
     "load_group_index",
+    "SourcePages",
+    "member_source",
 ]
 
 
@@ -36,6 +38,7 @@ class MemberInfo(TypedDict):
     req_ids: list[str]
     status: str
     source_file: str
+    source_url: str
     doxygen_url: str
     brief: str
     detail_lines: list[str]
@@ -51,6 +54,7 @@ class SymbolInfo(TypedDict):
     satisfies: list[str]
     brief: str
     source_file: str
+    source_url: str
     doxygen_url: str
     depends_on: list[str]
     depends_label: str
@@ -437,21 +441,18 @@ def parse_memberdef(
     testspec_html_dir: str,
     api_html_dir: str,
     tag_dirs: Mapping[str, str] | None = None,
+    source_pages: "SourcePages | None" = None,
 ) -> MemberInfo:
     """Extract all structured fields from a <memberdef> element — name, source
     location, Doxygen URL, brief description, test ID, requirement refs, status,
     see-also, and Arrange/Act/Assert body sections — and return them as a MemberInfo.
 
-    ``tag_dirs``: where a tag-file reference links, by tag file (`RefLinks.tags`)."""
+    ``tag_dirs``: where a tag-file reference links, by tag file (`RefLinks.tags`).
+    ``source_pages``: the source listings of the run (`SourcePages`); with them,
+    ``source_url`` is the listing of the function's file at its first line."""
     name = memberdef.findtext("name", "").strip()
 
-    loc = memberdef.find("location")
-    source_file = ""
-    if loc is not None:
-        fpath = loc.get("bodyfile") or loc.get("file", "")
-        line = loc.get("bodystart") or loc.get("line", "")
-        if fpath:
-            source_file = f"{Path(fpath).name} (line {line})"
+    source_file, source_url = member_source(memberdef, testspec_html_dir, source_pages)
 
     member_id = memberdef.get("id", "")
     prefix = compound_id + "_1"
@@ -538,6 +539,7 @@ def parse_memberdef(
         req_ids=req_ids,
         status=status,
         source_file=source_file,
+        source_url=source_url,
         doxygen_url=doxygen_url,
         brief=brief,
         detail_lines=detail_lines,
@@ -602,10 +604,13 @@ def requirement_uids(memberdef: ET.Element, relation: str) -> list[str]:
     return uids
 
 
-def parse_symbol(memberdef: ET.Element, html_dir: str) -> SymbolInfo:
+def parse_symbol(
+    memberdef: ET.Element, html_dir: str, source_pages: "SourcePages | None" = None
+) -> SymbolInfo:
     """An API symbol (function, macro, ...) as a need's data: name, kind, the
     requirements it satisfies, its brief, where it is declared, and its page in
-    the Doxygen HTML under ``html_dir``.
+    the Doxygen HTML under ``html_dir``. With ``source_pages``, ``source_url``
+    is the declaration's line in the source listing.
 
     The page is the one Doxygen documents the member on, which its id names:
     ``<compound>_1<anchor>``, the same shape `ref_to_rst` links. A member in a
@@ -618,12 +623,14 @@ def parse_symbol(memberdef: ET.Element, html_dir: str) -> SymbolInfo:
         doxygen_url = f"{html_dir}/{member_id[:cut]}.html#{member_id[cut + 2:]}"
 
     loc = memberdef.find("location")
-    source_file = ""
+    source_file = source_url = ""
     if loc is not None:
         fpath = loc.get("declfile") or loc.get("file", "")
         line = loc.get("declline") or loc.get("line", "")
         if fpath:
             source_file = f"{fpath} (line {line})" if line else fpath
+            if source_pages is not None:
+                source_url = source_pages.url(html_dir, fpath, line)
 
     depends_label, depends_on = kconfig_depends(memberdef.find("detaileddescription"))
     return SymbolInfo(
@@ -632,10 +639,135 @@ def parse_symbol(memberdef: ET.Element, html_dir: str) -> SymbolInfo:
         satisfies=requirement_uids(memberdef, "satisfies"),
         brief=para_text(memberdef.find("briefdescription/para"), RefLinks(local=html_dir)),
         source_file=source_file,
+        source_url=source_url,
         doxygen_url=doxygen_url,
         depends_on=depends_on,
         depends_label=depends_label,
     )
+
+
+def member_source(memberdef, html_dir, source_pages=None):
+    """``(source_file, source_url)`` of a function's body: ``"main.c (line 290)"``
+    and its line in the source listing under ``html_dir``, or ``""`` without one."""
+    loc = memberdef.find("location")
+    if loc is None:
+        return "", ""
+    fpath = loc.get("bodyfile") or loc.get("file", "")
+    line = loc.get("bodystart") or loc.get("line", "")
+    if not fpath:
+        return "", ""
+    url = source_pages.url(html_dir, fpath, line) if source_pages is not None else ""
+    return f"{Path(fpath).name} (line {line})", url
+
+
+#: Doxygen writes no listing for a documentation file.
+_DOC_FILES = (".dox", ".md", ".markdown", ".txt", ".doc")
+#: The files that ``VERBATIM_HEADERS`` gives a listing.
+_HEADERS = (".h", ".hh", ".hxx", ".hpp", ".h++")
+
+
+def _same_tail(a: str, b: str) -> bool:
+    """One path is the other with more directories in front."""
+    return a == b or a.endswith("/" + b) or b.endswith("/" + a)
+
+
+class SourcePages:
+    """The source listings of a Doxygen run, from its XML output.
+
+    Doxygen writes the listing of a file as ``<file refid>_source.html``, with
+    an anchor ``l<line, 5 digits>`` per line: of every code file with
+    ``SOURCE_BROWSER = YES``, of every header with ``VERBATIM_HEADERS = YES``
+    (the default). The XML does not name that page, so this class takes the
+    refid of the file compound whose ``<location file>`` is the path, as the
+    member's ``<location>`` gives it. Doxygen's file name escaping is not
+    rebuilt.
+
+    The settings come from the ``Doxyfile.xml`` that Doxygen writes beside
+    the XML. Without that file, `url` gives ``""``. A file compound's XML is
+    read only when a member of a file with its name asks for it.
+
+    `inputs` holds every XML file read so far, to note as the inputs of a
+    document after its lookups.
+    """
+
+    def __init__(self, xml_dir: Path):
+        self.xml_dir = Path(xml_dir)
+        self._by_name: dict[str, list[str]] = {}
+        self._paths: dict[str, str] = {}  # refid -> <location file>
+        #: Doxyfile.xml and index.xml (also when missing: a later run can
+        #: write them) and each file compound read by a lookup.
+        self.inputs: set[Path] = {self.xml_dir / "Doxyfile.xml", self.xml_dir / "index.xml"}
+        options = self._options()
+        if options is None:
+            return
+        self._all = options.get("SOURCE_BROWSER", "NO") == "YES"
+        self._headers = options.get("VERBATIM_HEADERS", "YES") == "YES"
+        try:
+            root = ET.parse(self.xml_dir / "index.xml").getroot()
+        except (OSError, ET.ParseError):
+            return
+        for c in root.findall("compound[@kind='file']"):
+            name, refid = c.findtext("name"), c.get("refid")
+            if name and refid and self._listed(name):
+                self._by_name.setdefault(name, []).append(refid)
+
+    def _options(self) -> dict[str, str] | None:
+        try:
+            root = ET.parse(self.xml_dir / "Doxyfile.xml").getroot()
+        except (OSError, ET.ParseError):
+            return None
+        return {
+            o.get("id"): (o.findtext("value") or "").strip().upper()
+            for o in root.iter("option")
+        }
+
+    def _listed(self, name: str) -> bool:
+        low = name.lower()
+        if low.endswith(_DOC_FILES):
+            return False
+        return self._all or (self._headers and low.endswith(_HEADERS))
+
+    def _path_of(self, refid: str) -> str:
+        if refid not in self._paths:
+            path = ""
+            xml = self.xml_dir / f"{refid}.xml"
+            self.inputs.add(xml)
+            try:
+                cdef = ET.parse(xml).getroot().find("compounddef")
+                loc = cdef.find("location") if cdef is not None else None
+                path = loc.get("file", "") if loc is not None else ""
+            except (OSError, ET.ParseError):
+                pass
+            self._paths[refid] = path
+        return self._paths[refid]
+
+    def refid(self, path: str, tail: bool = False) -> str:
+        """The refid of the file compound of ``path``, or ``""``.
+
+        ``tail``: ``path`` is from another root than Doxygen's paths
+        (``kernel/thread.c`` for ``zephyr/kernel/thread.c``). One path must
+        then end with the other, and only one file may match.
+        """
+        candidates = self._by_name.get(Path(path).name, ())
+        for refid in candidates:
+            if self._path_of(refid) == path:
+                return refid
+        if tail:
+            found = [r for r in candidates if _same_tail(self._path_of(r), path)]
+            if len(found) == 1:
+                return found[0]
+        return ""
+
+    def url(self, html_dir: str, path: str, line, tail: bool = False) -> str:
+        """``<html_dir>/<refid>_source.html#l00290``, or ``""`` without a listing."""
+        refid = self.refid(path, tail)
+        if not refid or not html_dir:
+            return ""
+        try:
+            anchor = f"#l{int(line):05d}"
+        except (TypeError, ValueError):
+            anchor = ""
+        return f"{html_dir}/{refid}_source.html{anchor}"
 
 
 def load_group_index(xml_dir: Path) -> dict[str, str]:

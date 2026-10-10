@@ -62,6 +62,10 @@ literally named ``ZTEST`` — expanding it also injects ``\ingroup suite`` from
 the macro's own argument, which is what attaches a test case to its suite
 without a hand-written (and driftable) ``@ingroup``.
 
+Optional: ``SOURCE_BROWSER = YES`` makes Doxygen write a source listing of
+each file. The Source line of each test case then links to the test's line in
+that listing, not to the test's entry on the group page.
+
 4. Declare the needs vocabulary
 ------------------------------------
 

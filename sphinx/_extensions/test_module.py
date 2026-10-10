@@ -10,7 +10,7 @@ from pathlib import Path
 from docutils import nodes
 from docutils.parsers.rst import Directive, directives
 from docutils.statemachine import ViewList
-from doxygen_parser import detail_rst_lines, load_group_index, parse_memberdef
+from doxygen_parser import SourcePages, detail_rst_lines, load_group_index, parse_memberdef
 from input_tracking import (  # noqa: F401  (the other hooks are re-exported for tests)
     _merge_inputs,
     _note_input,
@@ -175,7 +175,7 @@ def suite_name_from_group(group_name, qualifier=""):
 
 def _build_suite_rst(
     suite_refid, xml_dir, testspec_html_dir, api_html_dir, module_path, need_names=None,
-    depends_field=None, suite_qualifier="", tag_dirs=None,
+    depends_field=None, suite_qualifier="", tag_dirs=None, source_pages=None,
 ):
     """Build RST lines for one test suite group (section heading + test_case needs).
 
@@ -189,6 +189,8 @@ def _build_suite_rst(
     ``tag_dirs``: where a tag-file reference links, by tag file
     (`doxygen_parser.RefLinks.tags`); a reference none names goes to
     ``api_html_dir``.
+
+    ``source_pages``: the source listings of the run (`doxygen_parser.SourcePages`).
     """
     suite_xml = xml_dir / f"{suite_refid}.xml"
     if not suite_xml.exists():
@@ -207,7 +209,7 @@ def _build_suite_rst(
         lines.append("")
     for memberdef in suite_cdef.findall(".//memberdef[@kind='function']"):
         info = parse_memberdef(
-            memberdef, compound_id, testspec_html_dir, api_html_dir, tag_dirs
+            memberdef, compound_id, testspec_html_dir, api_html_dir, tag_dirs, source_pages
         )
         if not info["name"]:
             continue
@@ -225,7 +227,8 @@ def _build_suite_rst(
 
 
 def _build_proc_group_rst(
-    proc_refid, xml_dir, testspec_html_dir, api_html_dir, need_names=None, tag_dirs=None
+    proc_refid, xml_dir, testspec_html_dir, api_html_dir, need_names=None, tag_dirs=None,
+    source_pages=None,
 ):
     """Build RST lines for one procedure group (section heading + test_procedure needs)."""
     proc_xml = xml_dir / f"{proc_refid}.xml"
@@ -245,7 +248,7 @@ def _build_proc_group_rst(
         lines.extend(
             build_procedure_need_rst(
                 md, proc_compound_id, proc_group_name, testspec_html_dir, api_html_dir,
-                need_names=need_names, tag_dirs=tag_dirs,
+                need_names=need_names, tag_dirs=tag_dirs, source_pages=source_pages,
             ).splitlines()
         )
         lines.append("")
@@ -630,6 +633,12 @@ class TestModuleDirective(Directive):
             _note_input(env, xml_dir / f"{inner.get('refid')}.xml")
         suite_refids, proc_refids = _classify_inner_groups(module_cdef, xml_dir)
 
+        # The source listings, for the Source links: once per build, as the
+        # group index. Its inputs are noted after the lookups below.
+        source_pages = getattr(app, "_testmodule_source_pages", None)
+        if source_pages is None:
+            source_pages = app._testmodule_source_pages = SourcePages(xml_dir)
+
         need_names = _need_names_from_config(app)
         # Each name twister accepts is an input, so a scenario file that is
         # added or renamed later also re-reads the document.
@@ -647,13 +656,17 @@ class TestModuleDirective(Directive):
                     env, conditions, subject
                 ),
                 suite_qualifier=getattr(app.config, "testmodule_suite_qualifier", ""),
-                tag_dirs=tag_dirs,
+                tag_dirs=tag_dirs, source_pages=source_pages,
             )
         for proc_refid in proc_refids:
             all_rst += _build_proc_group_rst(
                 proc_refid, xml_dir, testspec_html_dir, api_html_dir, need_names=need_names,
-                tag_dirs=tag_dirs,
+                tag_dirs=tag_dirs, source_pages=source_pages,
             )
+        # The listings are shared by all documents: this notes the files that
+        # the lookups of all documents so far read, a superset of this one's.
+        for path in sorted(source_pages.inputs):
+            _note_input(env, path)
 
         _maybe_dump_rst(app, env.docname, "testmodule", group_name, "\n".join(all_rst))
         return _render_rst(all_rst, self.state, self.content_offset, match_titles=True)
