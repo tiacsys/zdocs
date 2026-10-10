@@ -73,3 +73,9 @@ def test_without_links_the_role_is_escaped_too():
     rst = _text("Once <computeroutput>" + REF + "</computeroutput>ed")
     assert rst == "Once :c:func:`k_msgq_init`\\ ed"
 
+
+def test_plain_text_has_no_markup():
+    xml = ("Drain <computeroutput>data1</computeroutput>[] via <computeroutput>" + REF
+           + "</computeroutput>, then " + REF + ".")
+    text = _text(xml, links=LINKS, plain=True)
+    assert text == "Drain data1[] via k_msgq_init(), then k_msgq_init()."
