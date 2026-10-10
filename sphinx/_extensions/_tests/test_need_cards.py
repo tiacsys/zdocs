@@ -7,7 +7,14 @@
 from pathlib import Path
 
 import pytest
-from need_cards import CSS_NAME, status_class, type_colors_css
+from need_cards import (
+    _JS_SOURCE,
+    CSS_NAME,
+    JS_NAME,
+    NEED_REF_CLASS,
+    status_class,
+    type_colors_css,
+)
 
 _ROOT = str(Path(__file__).parent / "roots" / "test-needcards")
 
@@ -43,6 +50,14 @@ def test_the_page_links_the_css_and_the_build_writes_it(app):
     assert "needs_type_spec" not in css
 
 
+@pytest.mark.sphinx("html", srcdir=_ROOT)
+def test_the_page_loads_the_preview_script(app):
+    # The root has no zdocs_conf, so no zdocs _static in html_static_path.
+    app.build()
+    assert f'src="_static/{JS_NAME}' in (Path(app.outdir) / "index.html").read_text()
+    assert (Path(app.outdir) / "_static" / JS_NAME).read_text() == _JS_SOURCE.read_text()
+
+
 @pytest.mark.parametrize(
     "status, cls",
     [("passed", "zd-status-passed"), ("Draft", "zd-status-draft"),
@@ -65,3 +80,18 @@ def test_each_need_table_gets_its_status_class(app):
     assert "zd-status-draft" in req
     assert "zd-status-passed-ok" in spec
     assert "zd-verdict-" not in req  # no verdict field: no class
+
+
+@pytest.mark.sphinx("html", srcdir=_ROOT)
+def test_only_a_link_to_a_need_gets_the_need_ref_class(app):
+    app.build()
+    html = (Path(app.outdir) / "index.html").read_text()
+    spec = html[html.index('id="SPEC_1"'):]
+
+    def link(href_part):
+        end = spec.index(href_part)
+        return spec[spec.rfind("<a ", 0, end):end]
+
+    assert NEED_REF_CLASS in link('href="#REQ_1"')  # the links field of SPEC_1
+    assert NEED_REF_CLASS not in link("main_8c_source.html#l00042")
+    assert f"a.{NEED_REF_CLASS}" in _JS_SOURCE.read_text()
