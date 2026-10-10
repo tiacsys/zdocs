@@ -85,7 +85,8 @@ Re-reads a document when its sphinx-needs TOML file or the needs it imports chan
 ``need_cards``
 ----------------
 
-The type colors and the status and verdict classes of the zdocs need cards.
+The type colors, the status and verdict classes and the previews of the zdocs
+need cards.
 
 .. automodule:: need_cards
    :members:

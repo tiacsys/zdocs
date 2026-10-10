@@ -20,6 +20,12 @@ sphinx-needs has rendered the needs of a page, the extension adds
 ``zd-status-<status>`` and ``zd-verdict-<verdict>`` to each need table that
 has the field (``zd-status-passed``, ``zd-verdict-partial``), so that the card
 can color the pill. The need data does not change.
+
+**A preview of the linked need.** The extension adds ``zdocs-need-preview.js``
+to each page. When the pointer stays on a link in a card, and the link goes
+to another card, a popup shows a copy of that card. The script fetches the
+target page in the browser, so it needs a page served over HTTP; a page
+opened as ``file://`` gets previews of the needs on the same page only.
 """
 
 import re
@@ -28,6 +34,8 @@ from pathlib import Path
 from docutils import nodes
 
 CSS_NAME = "zdocs-need-types.css"
+JS_NAME = "zdocs-need-preview.js"
+_JS_SOURCE = Path(__file__).resolve().parents[1] / "_static" / JS_NAME
 
 #: A CSS color as needs_config.toml gives it: #rgb(a) / #rrggbb(aa) or a name.
 _COLOR = re.compile(r"^(#([0-9A-Fa-f]{3,4}|[0-9A-Fa-f]{6}|[0-9A-Fa-f]{8})|[A-Za-z]+)$")
@@ -47,6 +55,11 @@ def type_colors_css(types):
         rules.append(f"table.need.need.need.need.needs_type_{name} {{ --zd-type: {color}; }}")
     return "\n".join(rules) + "\n"
 
+
+#: The class of a link in a card that goes to a need: the preview script
+#: takes only these links, and so fetches no page that has no card (a
+#: Doxygen source listing or API page).
+NEED_REF_CLASS = "zd-need-ref"
 
 #: The fields that a card shows as a pill: the engine's status and verdict.
 PILL_FIELDS = ("status", "verdict")
@@ -75,6 +88,15 @@ def _add_status_classes(app, doctree, docname):
             cls = status_class(need.get(field), field)
             if cls and cls not in table["classes"]:
                 table["classes"].append(cls)
+        _mark_need_refs(table, needs)
+
+
+def _mark_need_refs(table, needs):
+    """Give each link in ``table`` whose fragment is a need id `NEED_REF_CLASS`."""
+    for ref in table.findall(nodes.reference):
+        fragment = ref.get("refid") or ref.get("refuri", "").partition("#")[2]
+        if fragment and fragment in needs and NEED_REF_CLASS not in ref["classes"]:
+            ref["classes"].append(NEED_REF_CLASS)
 
 
 def _write(app, exception):
@@ -88,17 +110,24 @@ def _write(app, exception):
     path = static / CSS_NAME
     if not path.exists() or path.read_text() != css:
         path.write_text(css)
+    # zdocs_conf has the zdocs _static in html_static_path, so the file is
+    # there already; a document without zdocs_conf gets it here.
+    js = _JS_SOURCE.read_text()
+    path = static / JS_NAME
+    if not path.exists() or path.read_text() != js:
+        path.write_text(js)
 
 
-def _add_css(app):
+def _add_files(app):
     if app.builder.format == "html":
         app.add_css_file(CSS_NAME)
+        app.add_js_file(JS_NAME)
 
 
 def setup(app):
-    app.connect("builder-inited", _add_css)
-    # After sphinx-needs replaced each need node with its table
-    # (process_need_nodes, doctree-resolved at the default priority 500).
+    app.connect("builder-inited", _add_files)
+    # After sphinx-needs replaced each need node with its table and resolved
+    # the links in it (doctree-resolved at the default priority 500).
     app.connect("doctree-resolved", _add_status_classes, priority=600)
     # After the HTML builder copied the static files, which it does at the end.
     app.connect("build-finished", _write)

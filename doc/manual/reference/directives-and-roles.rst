@@ -559,6 +559,25 @@ The ``need_cards`` extension (loaded by ``zdocs_conf``) gives each card the
 class ``zd-status-<status>`` / ``zd-verdict-<verdict>`` that colors the pill.
 A type without a color stays grey.
 
+``need_cards`` also adds ``zdocs-need-preview.js`` to each page. When the
+pointer stays on a link in a card, and the link goes to another need card, a
+popup shows a copy of that card: the head, then the fields, then the text. The
+link can go to a page of this document or of another one. The script fetches
+the target page when the popup first opens and keeps it for the next link to
+the same page. Only a link that goes to a need gets a popup: ``need_cards``
+gives it the class ``zd-need-ref`` (its ``#fragment`` is the id of a need), so
+a link to a Doxygen page (Source, See also) does not make the script fetch
+that page. The copy has the type colors of the page that shows it, so all
+documents of a project must use the same ``needs_config.toml``. They do so
+already for the needs that they import from each other
+(``ZDOCS_NEEDS_CONFIG``, :doc:`consumer-contract`).
+
+The popup also opens on keyboard focus. Escape and a scroll of the page close
+it. A link in the popup gets no popup of its own. A device without hover (a
+touch screen) gets no popups. A browser does not let a page opened as
+``file://`` fetch other pages, so there only the links to needs on the same
+page get a popup; serve the HTML over HTTP to see all previews.
+
 The engine puts the references of a generated need (Depends on, Source, See
 also, Declared in) in a ``need-refs`` container: the card shows them as one
 block under the text.

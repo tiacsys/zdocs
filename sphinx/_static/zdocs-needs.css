@@ -376,3 +376,41 @@ table.need.need.need[class*=" needs_layout_zdocs"] :is(.zd-adq-ok, .zd-adq-miss,
 table.need.need.need[class*=" needs_layout_zdocs"] .zd-adq-ok { background: #e3f3e6; color: #1e6b33; }
 table.need.need.need[class*=" needs_layout_zdocs"] .zd-adq-miss { background: #fbe3e3; color: #a12828; }
 table.need.need.need[class*=" needs_layout_zdocs"] .zd-adq-none { background: #eceef1; color: #5f6670; }
+
+/* -- Preview: the popup of zdocs-need-preview.js ----------------------------- */
+
+/*
+ * A copy of the linked need card. The script puts the popup in .rst-content,
+ * where the card rules start.
+ */
+.zd-preview {
+    position: fixed;
+    z-index: 1000;
+    width: min(640px, calc(100vw - 32px));
+    max-height: min(420px, 60vh);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    background: #fff;
+    border-radius: 6px;
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.18), 0 1px 4px rgba(0, 0, 0, 0.12);
+}
+.zd-preview[hidden] {
+    display: none;
+}
+/* The card fills the popup: no margin, and the popup gives the shadow. It
+ * clips nothing itself, so that the head can stick to the top of the popup. */
+.rst-content .zd-preview table.need.need.need.need {
+    margin: 0;
+    box-shadow: none;
+    overflow: visible;
+}
+/* A preview is to find out what the need is: the head and the fields first,
+ * then the text (the card on its page shows the text first). */
+.zd-preview table.need.need.need.need > tbody > tr.meta { order: 1; }
+.zd-preview table.need.need.need.need > tbody > tr.content { order: 2; }
+/* The head stays in view while the rest scrolls. */
+.zd-preview table.need.need.need.need > tbody > tr.head {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+}
