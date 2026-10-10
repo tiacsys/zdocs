@@ -219,8 +219,8 @@ def build_procedure_need_rst(
     name = memberdef.findtext("name", "").strip()
     need_id = f"test-proc-{proc_group_name}-{name}"
 
-    # No links here: the brief is only used as the title, which is not parsed.
-    brief = para_text(memberdef.find(".//briefdescription/para"))
+    # Plain: the brief is only used as the title, which is not parsed.
+    brief = para_text(memberdef.find(".//briefdescription/para"), plain=True)
     title = (brief[:90] + "…") if len(brief) > 90 else brief
     if not title:
         title = name

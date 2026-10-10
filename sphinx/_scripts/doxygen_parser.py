@@ -160,21 +160,26 @@ def _join_inline(parts: list[tuple[str, bool]]) -> str:
     return " ".join(out.split())
 
 
-def para_text(para: ET.Element | None, links: RefLinks | None = None) -> str:
-    """Extract inline text from a <para>, rendering code/ref as plain text.
+def para_text(
+    para: ET.Element | None, links: RefLinks | None = None, plain: bool = False
+) -> str:
+    """Extract inline text from a <para> as RST, or as plain text with ``plain``.
 
     With ``links``, a symbol reference becomes a hyperlink into the Doxygen HTML
     (see `ref_to_rst`) — the same target the see-also line links to. Without,
     a member reference becomes a ``:c:func:`` role, which resolves only where a
     C domain defines the symbol; in the test documents nothing does, so it
-    renders as unlinked code, silently. The need title must stay plain text
-    (it is not parsed), so a caller building one passes no ``links``."""
+    renders as unlinked code, silently. A need title is not parsed, so a
+    caller building one asks for ``plain`` text: code and references as their
+    text, no markup."""
     if para is None:
         return ""
     parts: list[tuple[str, bool]] = [(para.text or "", False)]
     for child in para:
         if child.tag in ("xrefsect", "simplesect", "orderedlist", "itemizedlist", "parameterlist"):
             pass  # skip structural children
+        elif plain or child.tag in ("bold", "emphasis"):
+            parts.append((elem_text(child), False))
         elif child.tag == "computeroutput":
             ref = child.find("ref[@kindref='member']")
             if ref is not None and (link := ref_to_rst(ref, links)):
@@ -183,8 +188,6 @@ def para_text(para: ET.Element | None, links: RefLinks | None = None) -> str:
                 parts.append((f":c:func:`{(ref.text or '').rstrip('()').strip()}`", True))
             else:
                 parts.append((f"``{elem_text(child)}``", True))
-        elif child.tag in ("bold", "emphasis"):
-            parts.append((elem_text(child), False))
         elif child.tag == "ref":
             kindref = child.get("kindref", "")
             t = (child.text or "").strip()
