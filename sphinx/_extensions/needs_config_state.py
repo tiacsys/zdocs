@@ -104,6 +104,10 @@ def imported_needs_digest(confdir, external_needs):
 
     Only ``json_path`` sources count. A relative path is resolved against
     ``confdir``, as sphinx-needs resolves it. A ``json_url`` source is not read.
+
+    The settings of each source (``base_url`` and the others) count too: the
+    pickled environment keeps each imported need with its URL. Without them,
+    a new ``ZDOCS_DOC_BASE_URL`` left the links of a PDF on the old one.
     """
     sha = hashlib.sha256()
     count = 0
@@ -112,7 +116,12 @@ def imported_needs_digest(confdir, external_needs):
         if not json_path:
             continue
         path = Path(confdir, json_path)
-        sha.update(f"{path}\0{_imported_content(path, source.get('version'))}\0".encode())
+        settings = json.dumps(
+            {k: v for k, v in source.items() if k != "json_path"}, sort_keys=True, default=str
+        )
+        sha.update(
+            f"{path}\0{settings}\0{_imported_content(path, source.get('version'))}\0".encode()
+        )
         count += 1
     return sha.hexdigest() if count else ""
 

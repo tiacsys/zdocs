@@ -280,6 +280,19 @@ def test_imported_digest_follows_the_imported_needs(tmp_path):
     assert ncs.imported_needs_digest(tmp_path, sources) != first
 
 
+def test_imported_digest_follows_the_base_url(tmp_path):
+    # The environment keeps each imported need with its URL: a PDF built
+    # after a new ZDOCS_DOC_BASE_URL linked the old one.
+    peer = tmp_path / "needs.json"
+    _needs_json(peer, {"SPEC_001": {"id": "SPEC_001"}})
+    def digest(base_url):
+        return ncs.imported_needs_digest(tmp_path, [{"json_path": str(peer), "base_url": base_url}])
+
+    local = digest("http://localhost:8000/html/spec")
+    site = digest("https://docs.example.org/html/spec")
+    assert local != site
+
+
 def test_imported_digest_reads_the_configured_version(tmp_path):
     peer = tmp_path / "needs.json"
     data = {
