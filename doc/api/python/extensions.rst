@@ -91,6 +91,15 @@ need cards.
 .. automodule:: need_cards
    :members:
 
+``pdf_links``
+---------------
+
+Writes a link that is dead in a PDF (a local server, a relative HTML path) as
+its text.
+
+.. automodule:: pdf_links
+   :members:
+
 ``xref_builder``
 ------------------
 

@@ -41,3 +41,20 @@ file wherever it is filed or mailed, so a PDF built against a development
 ``base_url`` points at a host that may not exist — permanently, in a document
 that could already be signed off. Build (or rebuild) with the production
 ``base_url`` before generating a PDF meant for distribution or signature.
+
+The links of a PDF to other documents use the ``base_url``: the links of the
+needs, and the links to Doxygen pages (Source, See also, Declared in). Two
+kinds of link would be dead in a PDF: a link to a local server
+(``localhost`` or a loopback address, such as a development ``base_url``)
+and a relative HTML path, which has no target next to the PDF. The
+``pdf_links`` extension writes each of them as its text, without the link,
+and warns once per document::
+
+   WARNING: pdf_links: 72 link(s) written as text, without the link: they go
+   to a local server or to an HTML path next to the PDF (the first:
+   http://localhost/html/...). Set ZDOCS_DOC_BASE_URL to the published
+   site to keep the links to other documents. [zdocs.pdf_links]
+
+So a PDF of a development build has no dead links, only fewer links. A new
+``ZDOCS_DOC_BASE_URL`` takes effect on the next incremental build: the
+imported needs are read again with the new URL.

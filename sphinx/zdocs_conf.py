@@ -139,6 +139,9 @@ def configure(
         # type, from the needs configuration (one small CSS file), and a class
         # for the status of each need.
         "need_cards",
+        # In a PDF, a link to a local server or a relative HTML path (which
+        # has no target next to the PDF) is written as text, with a warning.
+        "pdf_links",
         # The `doc_control` directive: the controlled-document header (owner,
         # classification, approval dates, version). Registers `signature_section`
         # and `releaselevel` as config values, so it must be loaded even by
