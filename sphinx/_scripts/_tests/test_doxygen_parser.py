@@ -664,6 +664,19 @@ def test_source_pages_take_the_file_compound_of_the_path(tmp_path):
     )
 
 
+@pytest.mark.parametrize(
+    "url, seen",
+    [
+        ("../dox-api", "../../../dox-api"),
+        ("https://docs.example.org/html/dox-api", "https://docs.example.org/html/dox-api"),
+        ("/html/dox-api", "/html/dox-api"),
+        ("", ""),
+    ],
+)
+def test_page_url_prefixes_only_a_relative_url(url, seen):
+    assert dp.page_url("../../", url) == seen
+
+
 def test_source_pages_report_the_files_they_read(tmp_path):
     xml = _run(tmp_path, files={"a_8c": "src/a.c", "b_8c": "src/b.c"})
     pages = dp.SourcePages(xml)

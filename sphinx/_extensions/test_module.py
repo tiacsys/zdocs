@@ -10,7 +10,13 @@ from pathlib import Path
 from docutils import nodes
 from docutils.parsers.rst import Directive, directives
 from docutils.statemachine import ViewList
-from doxygen_parser import SourcePages, detail_rst_lines, load_group_index, parse_memberdef
+from doxygen_parser import (
+    SourcePages,
+    detail_rst_lines,
+    load_group_index,
+    page_url,
+    parse_memberdef,
+)
 from input_tracking import (  # noqa: F401  (the other hooks are re-exported for tests)
     _merge_inputs,
     _note_input,
@@ -586,8 +592,8 @@ class TestModuleDirective(Directive):
 
         page_depth = len(Path(env.docname).parts) - 1
         page_prefix = "../" * page_depth
-        testspec_html_dir = page_prefix + app.config.testspec_doxygen_url
-        api_html_dir = page_prefix + app.config.api_doxygen_url
+        testspec_html_dir = page_url(page_prefix, app.config.testspec_doxygen_url)
+        api_html_dir = page_url(page_prefix, app.config.api_doxygen_url)
         tag_dirs = _tag_dirs(getattr(app.config, "testmodule_tag_urls", {}), page_prefix)
         # testmodule_root is supplied by the engine (zdocs_conf.py, defaulting
         # to ZDOCS_PROJECT_BASE) — no ZEPHYR_BASE fallback: that was a

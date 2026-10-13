@@ -692,6 +692,15 @@ def member_source(memberdef, html_dir, source_pages=None):
     return f"{Path(fpath).name} (line {line})", url
 
 
+def page_url(page_prefix: str, url: str) -> str:
+    """``url`` as seen from a page ``page_prefix`` (``../`` per level) below
+    the document root: a relative URL gets the prefix, an absolute one (a
+    peer's site in a PDF build, ``https://...``) stays as it is."""
+    if not url or "://" in url or url.startswith("/"):
+        return url
+    return page_prefix + url
+
+
 #: Doxygen writes no listing for a documentation file.
 _DOC_FILES = (".dox", ".md", ".markdown", ".txt", ".doc")
 #: The files that ``VERBATIM_HEADERS`` gives a listing.

@@ -27,7 +27,7 @@ from adequacy import (
 from docutils import nodes
 from docutils.parsers.rst import Directive, directives
 from docutils.statemachine import ViewList
-from doxygen_parser import SourcePages
+from doxygen_parser import SourcePages, page_url
 from input_tracking import _note_input
 from needs_fields import field_type
 from rst_builders import _need_name
@@ -365,7 +365,7 @@ class TestCoverageDirective(Directive):
                 continue
             if doc_id not in cache:
                 cache[doc_id] = SourcePages(doc["xml_dir"])
-            listings.append((cache[doc_id], page_prefix + doc["html_url"]))
+            listings.append((cache[doc_id], page_url(page_prefix, doc["html_url"])))
 
         def body_url(path, line):
             for pages, html_dir in listings:

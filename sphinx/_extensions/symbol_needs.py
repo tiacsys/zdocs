@@ -21,7 +21,7 @@ from pathlib import Path
 from docutils import nodes
 from docutils.parsers.rst import Directive
 from docutils.statemachine import ViewList
-from doxygen_parser import SourcePages, load_group_index, parse_symbol
+from doxygen_parser import SourcePages, load_group_index, page_url, parse_symbol
 from input_tracking import _note_input
 from needs_fields import depends_field
 from rst_builders import build_symbol_need_rst
@@ -134,7 +134,7 @@ class SymbolNeedsDirective(Directive):
 
         page_prefix = "../" * (len(Path(env.docname).parts) - 1)
         doxygen_url = config.symbolneeds_doxygen_url
-        html_dir = page_prefix + doxygen_url if doxygen_url else ""
+        html_dir = page_url(page_prefix, doxygen_url)
         try:
             rst = symbol_needs_rst(
                 xml_dir, html_dir, group, _need_names_from_config(config),

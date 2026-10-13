@@ -736,6 +736,15 @@ def test_registry_gives_the_coverage_source_docs(tmp_path, monkeypatch):
     refs = docrefs.load("report", _registry(tmp_path))
     assert refs.testmodule["coverage_source_docs"] == ["dox-dd", "dox-api"]
     assert set(refs.doxygen_docs) == {"dox-dd", "dox-api"}
+    assert refs.doxygen_docs["dox-dd"]["html_url"] == "../dox-dd"
+
+
+def test_a_pdf_links_the_doxygen_documents_by_the_base_url(tmp_path, monkeypatch):
+    # A PDF has no sibling tree: a relative ../dox-dd would be dead in it.
+    monkeypatch.setenv("OUTPUT_DIR", str(tmp_path / "deploy" / "pdf" / "report"))
+    monkeypatch.setenv("ZDOCS_DOC_BASE_URL", "https://docs.example.org/v1")
+    refs = docrefs.load("report", _registry(tmp_path))
+    assert refs.doxygen_docs["dox-dd"]["html_url"] == "https://docs.example.org/v1/html/dox-dd"
 
 
 def test_manifest_names_the_coverage_source_docs(tmp_path):

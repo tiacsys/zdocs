@@ -862,6 +862,12 @@ def load(this_doc=None, registry=None):
             return rel_urls[doc_id]
         return base_url + meta.get("path", f"html/{doc_id}")
 
+    # The URL by which this document's output links into a locally built
+    # peer: ``rel_urls`` in HTML, the ``base_url``-rooted URL in a PDF, which
+    # has no sibling tree to be relative to. The extensions put the page's
+    # ``../`` prefix only in front of a relative one.
+    link_urls = {doc_id: _peer_url(doc_id, documents[doc_id]) for doc_id in rel_urls}
+
     # Nav links, grouped by the registry's `groups:`. sphinx/doxygen -> the
     # peer's index page (relative ones are relative to this doc's html root;
     # layout.html prefixes them with the page's own content_root); external ->
@@ -992,10 +998,10 @@ def load(this_doc=None, registry=None):
 
         testmodule = {
             "xml_dir": xml_dir,
-            "doxygen_url": rel_urls.get(doxygen_source, "") if doxygen_source else "",
-            "api_url": rel_urls.get(api_reference, "") if api_reference else "",
+            "doxygen_url": link_urls.get(doxygen_source, "") if doxygen_source else "",
+            "api_url": link_urls.get(api_reference, "") if api_reference else "",
             "needs_json": needs_json,
-            "tag_urls": tag_urls(documents, deploy, rel_urls),
+            "tag_urls": tag_urls(documents, deploy, link_urls),
             "coverage_source_docs": list(testmodule_block.get("coverage_source_docs") or []),
         }
 
@@ -1005,13 +1011,13 @@ def load(this_doc=None, registry=None):
         source = symbol_block["doxygen_source"]
         symbol_needs = {
             "xml_dir": str(deploy / "xml" / source),
-            "doxygen_url": rel_urls.get(source, ""),
+            "doxygen_url": link_urls.get(source, ""),
         }
 
     doxygen_docs = {
-        doc_id: {"xml_dir": str(deploy / "xml" / doc_id), "html_url": rel_urls[doc_id]}
+        doc_id: {"xml_dir": str(deploy / "xml" / doc_id), "html_url": link_urls[doc_id]}
         for doc_id, meta in documents.items()
-        if meta.get("kind") == "doxygen" and doc_id in rel_urls
+        if meta.get("kind") == "doxygen" and doc_id in link_urls
     }
 
     return Refs(
@@ -1029,22 +1035,23 @@ def load(this_doc=None, registry=None):
     )
 
 
-def tag_urls(documents, deploy, rel_urls):
+def tag_urls(documents, deploy, link_urls):
     """``{tag file path: HTML directory URL}`` for every tag file `tagfiles` can name.
 
     Doxygen marks a reference it resolved through a tag file with
     ``external="<tag file path>"``, the path exactly as ``TAGFILES`` gave it.
     This map sends such a reference to the document whose tag file it is:
-    for a ``kind: doxygen`` peer its HTML directory relative to this
-    document's root (``rel_urls``), for a ``kind: doxygen-external`` peer its
-    absolute remote directory, and for a needs tag its Sphinx root.
+    for a ``kind: doxygen`` peer its HTML directory (``link_urls``: relative
+    to this document's root in HTML, absolute in a PDF), for a
+    ``kind: doxygen-external`` peer its absolute remote directory, and for a
+    needs tag its Sphinx root.
     """
     urls = {}
     for doc_id, meta in documents.items():
         kind = meta.get("kind")
         path = meta.get("path", f"html/{doc_id}")
-        if kind == "doxygen" and doc_id in rel_urls:
-            urls[(deploy / path / DOXYGEN_TAGFILE).as_posix()] = rel_urls[doc_id]
+        if kind == "doxygen" and doc_id in link_urls:
+            urls[(deploy / path / DOXYGEN_TAGFILE).as_posix()] = link_urls[doc_id]
         elif kind == "doxygen-external":
             # Without its trailing slash: the reader appends "/<page>".
             base_dir_url = _intersphinx_target_dir(meta["remote-url"]).rstrip("/")
@@ -1052,9 +1059,9 @@ def tag_urls(documents, deploy, rel_urls):
         elif (
             kind in (None, "sphinx")
             and meta.get("doxygen_tag") is not None
-            and doc_id in rel_urls
+            and doc_id in link_urls
         ):
-            urls[(deploy / path / NEEDS_TAGFILE).as_posix()] = rel_urls[doc_id]
+            urls[(deploy / path / NEEDS_TAGFILE).as_posix()] = link_urls[doc_id]
     return urls
 
 
