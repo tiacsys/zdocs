@@ -39,7 +39,7 @@ def test_the_card_has_the_head_the_fields_and_the_links():
         '<<meta("title")>>',
     ]
     assert layout["layout"]["meta"] == [
-        '<<meta("rtype", prefix="Kind:")>>',
+        '<<meta("rtype", prefix="Kind: ")>>',
         '<<meta_links_all(exclude=["covers_back"])>>',
     ]
 
@@ -71,7 +71,7 @@ def test_a_hidden_backlink_is_not_shown(app):
     assert "verified by" in req and "SPEC_1" in req
     assert "covered by" not in req and "RES_1" not in req
     assert "needs_layout_zdocs_slim" in req
-    assert '<span class="needs_label">State:</span>' in req
+    assert '<span class="needs_label">State: </span>' in req
 
 
 @pytest.mark.sphinx("html", srcdir=_ROOT)
