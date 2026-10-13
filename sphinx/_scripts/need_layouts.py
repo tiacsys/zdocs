@@ -66,11 +66,16 @@ def links_line(hide_backlinks=()):
 
 
 def field_line(name, label):
-    """The layout line for field ``name``, shown as ``label:``."""
+    """The layout line for field ``name``, shown as ``label: value``.
+
+    The space after the colon is for the PDF, where the label and the value
+    follow each other in one line. In the HTML card, the label is a grid
+    column and the browser drops the space at its end.
+    """
     _check_names("fields", [name])
     if not _LABEL.match(label):
         raise ValueError(f"fields: the label {label!r} of {name!r} must be plain words")
-    return f'<<meta("{name}", prefix="{label}:")>>'
+    return f'<<meta("{name}", prefix="{label}: ")>>'
 
 
 def need_layout(fields=None, hide_backlinks=(), pill="status"):
