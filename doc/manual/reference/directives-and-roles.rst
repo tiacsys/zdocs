@@ -559,6 +559,45 @@ The ``need_cards`` extension (loaded by ``zdocs_conf``) gives each card the
 class ``zd-status-<status>`` / ``zd-verdict-<verdict>`` that colors the pill.
 A type without a color stays grey.
 
+**The colors of a card are CSS variables.** ``zdocs-needs.css`` sets them on
+``:root``, and a theme changes the card with these variables only. Set them
+in a CSS file of the document that loads after ``zdocs-needs.css`` (the
+``css_files`` of ``configure()``):
+
+.. code-block:: css
+
+   :root {
+       --zd-card-bg: #fdfdfd;
+       --zd-card-fields: #f6f7f8;
+   }
+
+``--zd-card-bg``, ``--zd-card-fields``
+   The card, and the row of its fields and links.
+``--zd-card-head``
+   The share of the type color in the head (a percentage).
+``--zd-accent-l``, ``--zd-accent-c``
+   The lightness (OKLCH) of the type label, and the most chroma that it can
+   have. The label is the type color with four times its chroma, up to
+   ``--zd-accent-c``.
+``--zd-border``, ``--zd-rule``, ``--zd-label``, ``--zd-text``, ``--zd-id``
+   The border, the lines in the card, the field labels, the text and the ID.
+``--zd-shadow``, ``--zd-preview-shadow``
+   The shadow of the card and of the preview popup.
+``--zd-ok-*``, ``--zd-bad-*``, ``--zd-gap-*``, ``--zd-off-*``
+   Each with ``-text``, ``-bg`` and ``-line``: the pills and the adequacy
+   chips for good, failing, a gap, and not judged or not run.
+
+The card has dark values too. They apply when ``<html>`` has
+``data-theme="dark"`` or the class ``dark-mode``, the usual switches of a
+dark mode for ``sphinx_rtd_theme``. A theme with another switch sets the
+variables under its own selector. There is no ``prefers-color-scheme`` rule,
+because ``sphinx_rtd_theme`` has no dark mode of its own.
+
+With the default values, the type label and the title have a contrast of at
+least 4.5:1 (WCAG AA) on the head for any type color, in both themes. If you
+change ``--zd-card-head`` or ``--zd-accent-*``, check the contrast of your
+type colors again.
+
 ``need_cards`` also adds ``zdocs-need-preview.js`` to each page. When the
 pointer stays on a link in a card, and the link goes to another need card, a
 popup shows a copy of that card: the head, then the fields, then the text. The

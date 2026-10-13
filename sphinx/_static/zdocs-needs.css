@@ -16,25 +16,81 @@
  *
  * Each need type has its color in --zd-type. The need_cards extension
  * sets it from the "color" of the type in the needs configuration
- * (zdocs-need-types.css). The other colors come from it.
+ * (zdocs-need-types.css). The head and the type label come from it.
  */
+
+/*
+ * Every other color of the card is a variable. A theme changes the card
+ * with these variables only: it sets them on :root (or on html.<class>), in
+ * a CSS file that loads after this one.
+ *
+ * The dark values apply when <html> has data-theme="dark" or the class
+ * dark-mode, the two usual switches of a dark mode for sphinx_rtd_theme.
+ * There is no prefers-color-scheme rule: sphinx_rtd_theme itself has no dark
+ * mode, and a dark card on a light page is worse than a light card.
+ *
+ * The type label (--zd-accent) is the type color at the lightness
+ * --zd-accent-l, with at most the chroma --zd-accent-c: four times the
+ * chroma of the type, so that a pastel type gets a clear label. The cap keeps
+ * a saturated type in the sRGB gamut. The head mixes --zd-card-head of the
+ * type color into the card. With the values below, the label and the title
+ * have a contrast of at least 4.5:1 (WCAG AA) on the head for any type
+ * color, in both themes; for the pastel and the mid colors of a usual
+ * needs palette, at least 5:1. A theme that changes these values must check
+ * the contrast again.
+ */
+:root {
+    --zd-card-bg: #ffffff;
+    --zd-card-fields: #fafbfc;  /* the row of the fields and links */
+    --zd-card-head: 35%;        /* the share of the type color in the head */
+    --zd-accent-l: 0.34;        /* the lightness of the type label (OKLCH) */
+    --zd-accent-c: 0.14;        /* the most chroma that the label can have */
+    --zd-border: #d5d9de;
+    --zd-rule: #e6e9ec;         /* the lines in the card */
+    --zd-label: #5f6670;
+    --zd-text: #1d2329;
+    --zd-id: #2b3a4a;
+    --zd-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+    --zd-preview-shadow: 0 6px 24px rgba(0, 0, 0, 0.18), 0 1px 4px rgba(0, 0, 0, 0.12);
+    /* The pills and the adequacy chips: good, failing, a gap, not judged */
+    --zd-ok-text: #116329;   --zd-ok-bg: #dafbe1;   --zd-ok-line: #1a7f37;
+    --zd-bad-text: #a40e26;  --zd-bad-bg: #ffebe9;  --zd-bad-line: #cf222e;
+    --zd-gap-text: #7d4e00;  --zd-gap-bg: #fff8c5;  --zd-gap-line: #bf8700;
+    --zd-off-text: #424a53;  --zd-off-bg: #eaeef2;  --zd-off-line: #8c959f;
+}
+html[data-theme="dark"],
+html.dark-mode {
+    --zd-card-bg: #26272a;
+    --zd-card-fields: #222326;
+    --zd-card-head: 18%;
+    --zd-accent-l: 0.84;
+    --zd-accent-c: 0.12;
+    --zd-border: #3a3b3e;
+    --zd-rule: #34353a;
+    --zd-label: #a3a3a3;
+    --zd-text: #d6d6d6;
+    --zd-id: #f2f2f2;
+    --zd-shadow: none;
+    --zd-preview-shadow: 0 6px 24px rgba(0, 0, 0, 0.6), 0 0 0 1px var(--zd-border);
+    --zd-ok-text: #7ee787;   --zd-ok-bg: rgba(46, 160, 67, 0.15);   --zd-ok-line: #3fb950;
+    --zd-bad-text: #ffa198;  --zd-bad-bg: rgba(248, 81, 73, 0.15);  --zd-bad-line: #f85149;
+    --zd-gap-text: #e3b341;  --zd-gap-bg: rgba(187, 128, 0, 0.15);  --zd-gap-line: #d29922;
+    --zd-off-text: #c9d1d9;  --zd-off-bg: rgba(110, 118, 129, 0.2); --zd-off-line: #8b949e;
+}
 
 table.need.need.need[class*=" needs_layout_zdocs"] {
     --zd-type: #eeeeee;
     --zd-accent: #666666;
-    --zd-accent: oklch(from var(--zd-type) 0.52 calc(c * 4 + 0.02) h);
-    --zd-border: #d5d9de;
-    --zd-label: #5f6670;
-    --zd-text: #1d2329;
+    --zd-accent: oklch(from var(--zd-type) var(--zd-accent-l) min(calc(c * 4 + 0.02), var(--zd-accent-c)) h);
     --zd-mono: SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
 
     display: block;
     margin: 1.5em 0;
-    background: #fff;
+    background: var(--zd-card-bg);
     border: 1px solid var(--zd-border);
     border-left: 5px solid var(--zd-accent);
     border-radius: 6px;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+    box-shadow: var(--zd-shadow);
     overflow: hidden;
 }
 
@@ -67,7 +123,7 @@ table.need.need.need[class*=" needs_layout_zdocs"] > tbody > tr.meta { order: 2;
 /* -- Head: type, ID and status; then the title ------------------------------ */
 
 table.need.need.need[class*=" needs_layout_zdocs"] > tbody > tr.head {
-    background: color-mix(in srgb, var(--zd-type) 55%, #fff);
+    background: color-mix(in srgb, var(--zd-type) var(--zd-card-head), var(--zd-card-bg));
 }
 table.need.need.need[class*=" needs_layout_zdocs"] > tbody > tr.head > td:not([rowspan]) {
     padding: 0.7em 1.25em 0.75em;
@@ -82,7 +138,7 @@ table.need.need.need[class*=" needs_layout_zdocs"] tr.head .needs_type_name {
     text-transform: uppercase;
 }
 table.need.need.need[class*=" needs_layout_zdocs"] tr.head .needs-id a {
-    color: #2b3a4a;
+    color: var(--zd-id);
     font-family: var(--zd-mono);
     font-size: 0.85em;
 }
@@ -105,25 +161,25 @@ table.need.need.need[class*=" needs_layout_zdocs"] tr.head :is(.needs_status, .n
  * statuses, like the "Draft" of a requirement, keep the type accent.
  */
 table.need.need.need[class*=" needs_layout_zdocs"]:is(.zd-status-passed, .zd-verdict-true) tr.head :is(.needs_status, .needs_verdict) {
-    border-color: #1a7f37;
-    background: #dafbe1;
-    color: #116329;
+    border-color: var(--zd-ok-line);
+    background: var(--zd-ok-bg);
+    color: var(--zd-ok-text);
 }
 table.need.need.need[class*=" needs_layout_zdocs"]:is(.zd-status-failed, .zd-status-error, .zd-verdict-broken) tr.head :is(.needs_status, .needs_verdict) {
-    border-color: #cf222e;
-    background: #ffebe9;
-    color: #a40e26;
+    border-color: var(--zd-bad-line);
+    background: var(--zd-bad-bg);
+    color: var(--zd-bad-text);
 }
 table.need.need.need[class*=" needs_layout_zdocs"]:is(.zd-status-skipped, .zd-status-filtered, .zd-status-blocked, .zd-status-not-run, .zd-verdict-unattributed, .zd-verdict-unresolved, .zd-verdict-no-cov) tr.head :is(.needs_status, .needs_verdict) {
-    border-color: #8c959f;
-    background: #eaeef2;
-    color: #424a53;
+    border-color: var(--zd-off-line);
+    background: var(--zd-off-bg);
+    color: var(--zd-off-text);
 }
 /* A gap, not a failure: some of the code, or no code at all. */
 table.need.need.need[class*=" needs_layout_zdocs"]:is(.zd-verdict-partial, .zd-verdict-no-impl) tr.head :is(.needs_status, .needs_verdict) {
-    border-color: #bf8700;
-    background: #fff8c5;
-    color: #7d4e00;
+    border-color: var(--zd-gap-line);
+    background: var(--zd-gap-bg);
+    color: var(--zd-gap-text);
 }
 table.need.need.need[class*=" needs_layout_zdocs"] tr.head .needs_title {
     display: block;
@@ -224,7 +280,7 @@ html.writer-html5 .rst-content table.need.need.need[class*=" needs_layout_zdocs"
 html .rst-content table.need.need.need[class*=" needs_layout_zdocs"] div.need-refs {
     margin: 1rem 0 0.25rem;
     padding-top: 0.6rem;
-    border-top: 1px dashed #e1e4e8;
+    border-top: 1px dashed var(--zd-rule);
 }
 html.writer-html5 .rst-content table.need.need.need[class*=" needs_layout_zdocs"] > tbody > tr.content > td div.need-refs > p {
     margin: 0.15rem 0;
@@ -244,13 +300,13 @@ html .rst-content table.need.need.need[class*=" needs_layout_zdocs"] div.need-re
 /* -- Fields and links: one label/value grid ------------------------------------ */
 
 html .rst-content table.need.need.need[class*=" needs_layout_zdocs"] > tbody > tr.meta > td {
-    background: #fafbfc;
+    background: var(--zd-card-fields);
     font-size: 0.9rem;
     line-height: 1.6;
 }
 table.need.need.need[class*=" needs_layout_zdocs"] > tbody > tr.meta > td:not([rowspan]) {
     padding: 0.5rem 1.25rem 0.6rem;
-    border-top: 1px solid #e6e9ec;
+    border-top: 1px solid var(--zd-rule);
     border-bottom: none;
 }
 table.need.need.need[class*=" needs_layout_zdocs"] tr.meta div.line-block {
@@ -373,9 +429,9 @@ table.need.need.need[class*=" needs_layout_zdocs"] :is(.zd-adq-ok, .zd-adq-miss,
     font-size: 0.9em;
     white-space: nowrap;
 }
-table.need.need.need[class*=" needs_layout_zdocs"] .zd-adq-ok { background: #e3f3e6; color: #1e6b33; }
-table.need.need.need[class*=" needs_layout_zdocs"] .zd-adq-miss { background: #fbe3e3; color: #a12828; }
-table.need.need.need[class*=" needs_layout_zdocs"] .zd-adq-none { background: #eceef1; color: #5f6670; }
+table.need.need.need[class*=" needs_layout_zdocs"] .zd-adq-ok { background: var(--zd-ok-bg); color: var(--zd-ok-text); }
+table.need.need.need[class*=" needs_layout_zdocs"] .zd-adq-miss { background: var(--zd-bad-bg); color: var(--zd-bad-text); }
+table.need.need.need[class*=" needs_layout_zdocs"] .zd-adq-none { background: var(--zd-off-bg); color: var(--zd-off-text); }
 
 /* -- Preview: the popup of zdocs-need-preview.js ----------------------------- */
 
@@ -390,9 +446,9 @@ table.need.need.need[class*=" needs_layout_zdocs"] .zd-adq-none { background: #e
     max-height: min(420px, 60vh);
     overflow-y: auto;
     overscroll-behavior: contain;
-    background: #fff;
+    background: var(--zd-card-bg);
     border-radius: 6px;
-    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.18), 0 1px 4px rgba(0, 0, 0, 0.12);
+    box-shadow: var(--zd-preview-shadow);
 }
 .zd-preview[hidden] {
     display: none;
