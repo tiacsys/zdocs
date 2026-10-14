@@ -132,6 +132,91 @@
 \let\printglossary\relax
 \let\printglossaries\relax
 
+% -- Need cards ------------------------------------------------------------------
+%
+% The need_cards extension writes each zdocs card (need_layout()) as:
+%
+%   \begin{zdneed}{<accent RRGGBB>}
+%   \zdneedhead{<type>}{<ID>}{<tone>}{<status>}
+%   \zdneedtitle{<title>}
+%   <text of the need>
+%   \zdneedfield{<label>}{<value>}      (each field and link)
+%   \end{zdneed}
+%
+% The card has no background, so that it prints well: a bar in the accent
+% color of its type on the left, the title in bold, then the text, then the
+% fields and links with their labels in one column. The status is a framed
+% badge in the color of its tone: good (passed), bad (failed), gap (partial),
+% none (skipped, not run) or accent (any other status, in the type color).
+% The card breaks across pages (framed).
+%
+% A consumer's style file can change the colors (\definecolor) and the
+% width of the label column (\setlength{\zdneedlabelwidth}{...}), or define
+% the macros again (\renewcommand, \renewenvironment).
+
+\RequirePackage{framed}
+
+\definecolor{zdLabel}{gray}{0.40}
+\definecolor{zdTonegood}{HTML}{116329}
+\definecolor{zdTonebad}{HTML}{A40E26}
+\definecolor{zdTonegap}{HTML}{7D4E00}
+\definecolor{zdTonenone}{HTML}{424A53}
+\newlength{\zdneedlabelwidth}
+\setlength{\zdneedlabelwidth}{7em}
+\newif\ifzd@needfields
+
+\newenvironment{zdneed}[1]{%
+  \par\addvspace{1.1\baselineskip}%
+  \definecolor{zdAccent}{HTML}{#1}%
+  \colorlet{zdToneaccent}{zdAccent}%
+  \zd@needfieldsfalse
+  \def\FrameCommand{{\color{zdAccent}\vrule\@width 2pt}\hspace{0.9em}}%
+  \MakeFramed{\advance\hsize-\width\FrameRestore}%
+}{%
+  \par\endMakeFramed
+  \par\addvspace{1.1\baselineskip}%
+}
+
+% The status badge: text and frame in the color of the tone.
+\newcommand{\zdneedbadge}[2]{%
+  {\color{zdTone#1}\fboxsep=1.5pt\fboxrule=0.6pt
+   \fbox{\footnotesize\bfseries\vphantom{Ag}\,#2\,}}%
+}
+
+\newcommand{\zdneedhead}[4]{%
+  \par\noindent
+  {\raggedright
+   {\color{zdAccent}\footnotesize\bfseries #1}\hspace{0.6em}%
+   {\small\bfseries #2}%
+   \if\relax\detokenize{#4}\relax\else\hfill\zdneedbadge{#3}{#4}\fi
+   \par}%
+  \nobreak
+}
+
+\newcommand{\zdneedtitle}[1]{%
+  \vspace{0.15\baselineskip}%
+  \noindent{\large\bfseries #1\par}%
+  \nobreak\vspace{0.35\baselineskip}%
+}
+
+% A label wider than the column goes on a line of its own.
+\newcommand{\zdneedfield}[2]{%
+  \par
+  \ifzd@needfields\else
+    \zd@needfieldstrue\addvspace{0.5\baselineskip}%
+    \parskip\z@skip
+  \fi
+  \sbox\z@{\footnotesize #1}%
+  \noindent
+  \ifdim\wd\z@>\dimexpr\zdneedlabelwidth-0.5em\relax
+    {\color{zdLabel}\usebox\z@}\par\nobreak\noindent\hspace*{\zdneedlabelwidth}%
+  \else
+    \makebox[\zdneedlabelwidth][l]{\color{zdLabel}\usebox\z@}%
+  \fi
+  \hangindent\zdneedlabelwidth\hangafter\@ne
+  {\small #2\par}%
+}
+
 % -- Signature lines -----------------------------------------------------------
 %
 % The doc_control extension writes the sign-off block of the PDF with

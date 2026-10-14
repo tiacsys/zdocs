@@ -6,6 +6,7 @@
 
 from pathlib import Path
 
+import need_cards
 import pytest
 from need_cards import (
     _JS_SOURCE,
@@ -95,3 +96,59 @@ def test_only_a_link_to_a_need_gets_the_need_ref_class(app):
     assert NEED_REF_CLASS in link('href="#REQ_1"')  # the links field of SPEC_1
     assert NEED_REF_CLASS not in link("main_8c_source.html#l00042")
     assert f"a.{NEED_REF_CLASS}" in _JS_SOURCE.read_text()
+
+
+# -- The card in a PDF ---------------------------------------------------------
+
+_LATEX_ROOT = str(Path(__file__).parent / "roots" / "test-needcards-latex")
+
+
+@pytest.mark.parametrize(
+    "color, rgb",
+    [
+        ("#FDEBD0", "8B6001"),  # the type color of a requirement: brown-orange
+        ("#D6EAF8", "0571A3"),
+        ("#eeeeee", "696969"),  # a grey stays grey
+        ("#fff", "696969"),
+        ("", None),
+        ("red", None),  # a name: no hue that the engine can compute
+    ],
+)
+def test_the_accent_of_a_type_color(color, rgb):
+    assert need_cards.accent(color) == rgb
+
+
+@pytest.mark.parametrize(
+    "cls, tone",
+    [
+        ("zd-status-passed", "good"),
+        ("zd-status-failed", "bad"),
+        ("zd-verdict-partial", "gap"),
+        ("zd-status-skipped", "none"),
+        ("zd-status-approved", "accent"),
+    ],
+)
+def test_the_tone_of_a_status(cls, tone):
+    assert need_cards.tone(cls) == tone
+
+
+@pytest.mark.sphinx("latex", srcdir=_LATEX_ROOT)
+def test_a_card_is_written_with_the_macros_of_zdocs_sty(app):
+    app.build()
+    tex = (Path(app.outdir) / "cards.tex").read_text()
+    req = tex[tex.index("\\begin{zdneed}{8B6001}") :]
+    req = req[: req.index("\\end{zdneed}")]
+    assert "\\phantomsection\\label{\\detokenize{index:REQ_1}}" in req
+    assert "\\zdneedhead{Requirement}{REQ\\_\\allowbreak{}1}{accent}{approved}" in req
+    assert "\\zdneedtitle{" in req and "A requirement" in req
+    # The title, then the text, then the fields and links.
+    text = req.index("The text of the requirement.")
+    assert req.index("\\zdneedtitle{") < text < req.index("\\zdneedfield{Component}")
+    assert req.index("\\zdneedfield{Component}") < req.index("\\zdneedfield{links incoming}")
+    assert "SPEC\\_A\\_LONG\\_ID" in req[req.index("\\zdneedfield{links incoming}") :]
+
+    spec = tex[tex.index("\\begin{zdneed}{666666}") :]
+    assert spec.index("{good}{passed}") < spec.index("\\end{zdneed}")
+    # A need of another layout keeps the sphinx-needs table.
+    assert tex.count("\\begin{zdneed}") == 2
+    assert "\\label{\\detokenize{index:REQ_2}}" in tex

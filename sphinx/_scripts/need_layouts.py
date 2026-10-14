@@ -25,7 +25,9 @@ styles a need whose layout name starts with ``zdocs`` (the HTML class
 need type its ``color`` from the needs configuration.
 
 The rows stay in the sphinx-needs order (head, fields, text); the CSS shows
-the fields last. So the PDF and a screen reader still give the fields first.
+the fields last, so a screen reader still gives the fields first. In a PDF,
+``need_cards`` writes the card with the macros of ``zdocs.sty``: head, title,
+text, then the fields and links.
 
 sphinx-needs shows every incoming link of a need. A requirement can have
 hundreds of test results that cover it, and that list hides the rest of the

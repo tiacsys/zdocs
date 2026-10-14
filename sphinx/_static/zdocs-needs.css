@@ -96,8 +96,9 @@ table.need.need.need[class*=" needs_layout_zdocs"] {
 
 /*
  * Show the head, the text, then the fields. The rows stay in the sphinx-needs
- * order (head, meta, content) in the HTML, so the PDF does not change; the
- * table body becomes a flex column and the meta row moves to the end.
+ * order (head, meta, content) in the HTML; the table body becomes a flex
+ * column and the meta row moves to the end. (The PDF has its own card:
+ * need_cards and zdocs.sty.)
  */
 table.need.need.need[class*=" needs_layout_zdocs"] > tbody {
     display: flex;
