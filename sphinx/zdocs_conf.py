@@ -53,27 +53,6 @@ import docrefs  # noqa: E402  (needs the sys.path above)
 from doc_control import latex_escape  # noqa: E402  (same)
 from need_layouts import links_line, need_layout  # noqa: E402,F401  (for conf.py)
 
-#: Defines the macro ``doc_control`` emits for the PDF-only sign-off block.
-#:
-#: The two halves live apart for a reason that is easy to get wrong: the
-#: extension decides WHAT is signed (which roles, pre-filled from which
-#: directive fields) and the preamble decides what a signature line LOOKS like.
-#: But they are a pair, and only one of them can fail loudly — an emitted
-#: ``\signatureline`` with nothing defining it stops xelatex dead ("Undefined
-#: control sequence"), whereas the macro sitting unused costs nothing. So the
-#: engine always ships the definition, whatever ``signature_section`` is set to.
-_SIGNATURE_LINE_MACRO = r"""
-\newcommand{\signatureline}[2]{%
-    \noindent\textbf{#1}\par
-    \vspace{0.35cm}
-    \noindent#2\par
-    \vspace{0.20cm}
-    \noindent\makebox[\linewidth]{\rule{0pt}{0.5pt}\hrulefill}\par
-    \vspace{0.85cm}
-}
-"""
-
-
 def _env_path(name):
     value = os.environ.get(name)
     return Path(value).resolve() if value else None
@@ -91,11 +70,16 @@ def configure(
     css_files=None,
     templates_path=None,
     needs_config=None,
+    latex_style=None,
 ):
     """Populate a document's ``conf.py`` globals with the shared configuration.
 
     ``doc_dir`` is the document's own directory. ``project``, ``author`` and
     ``copyright_holder`` are the consumer's identity.
+
+    ``latex_style`` is the path of a consumer's LaTeX style file (``.sty``).
+    The PDF loads it after the engine's ``zdocs.sty``, so it can change the
+    settings, colors and fonts that ``zdocs.sty`` documents.
 
     ``extensions`` is appended to the engine's list rather than replacing it, so
     a consumer can add its own without having to restate the two-stage build's
@@ -212,71 +196,31 @@ def configure(
     # convention, which is the same convention add_sphinx_target relies on.
     latex_target = os.environ.get("LATEX_DOC") or f"{folder}.tex"
 
-    # The running header and footer.
-    #
-    # A PDF leaves the deploy tree — it gets printed, mailed, filed in a binder —
-    # so unlike an HTML page it carries no navigation and no URL to say what it
-    # is. This is the only thing that does, which is why the version goes in it:
-    # a printed controlled document that does not state its own version is not a
-    # controlled document.
+    # The look of the PDF is in zdocs.sty (_latex/), which Sphinx copies next
+    # to the .tex (latex_additional_files). Here only the values that come
+    # from the build: the running header and footer.
     #
     # Every value here is the CONSUMER's, and every one is escaped. These are the
     # strings most likely to contain LaTeX syntax by accident — a company called
     # "Smith & Co", a document id with an underscore — and unescaped they are a
     # compile error at the very end of a long build, not a typo on a page.
-    #
-    # sphinxlatexstylepage.sty (pulled in by \usepackage{sphinx}) defines the
-    # "normal" and "plain" page styles with \fancypagestyle, and the body and ToC
-    # pages select those BY NAME rather than a bare "fancy". Redefining those two
-    # names, after \usepackage{sphinx} has run, is what actually sticks;
-    # \pagestyle{fancy} in the preamble does not.
-    page_style = rf"""
-    \fancyhf{{}}
-    \fancyhead[L]{{{latex_escape(doc_id)}}}
-    \fancyhead[C]{{{latex_escape(project)}}}
-    \fancyhead[R]{{{latex_escape(version)}}}
-    \fancyfoot[L]{{Copyright {copyright_year} {latex_escape(holder)}. All rights reserved}}
-    \fancyfoot[R]{{\thepage/\pageref{{LastPage}}}}
-    \renewcommand{{\headrulewidth}}{{0.4pt}}
-    \renewcommand{{\footrulewidth}}{{0.4pt}}
-    """
-
+    latex_files = [str(ZDOCS_DOC_DIR / "_latex" / "zdocs.sty")]
     latex_preamble = (
-        r"""
-\usepackage{longtable}
-\usepackage{array}
-\usepackage{booktabs}
-\usepackage{fancyhdr}
-\usepackage{lastpage}
-\usepackage{xcolor}
-\usepackage{tabularx}
-\usepackage{graphicx}
-"""
-        + _SIGNATURE_LINE_MACRO
-        + rf"""
-\fancypagestyle{{normal}}{{{page_style}}}
-\fancypagestyle{{plain}}{{{page_style}}}
-"""
-        + r"""
-% Top-level headings are \section, not \chapter (see latex_toplevel_sectioning):
-% no "Chapter N" banner and no forced page break before each one, which suits a
-% controlled document of a few dozen pages rather than a book.
-%
-% \thesection must then be re-anchored to \arabic{section}. In this document
-% class it is \thechapter.\arabic{section}, and with no \chapter command ever
-% invoked the chapter counter is never incremented — so every heading in the
-% document numbers itself 0.1, 0.2, 0.3. That renders, compiles clean, and is
-% only visible once someone looks at the PDF.
-\renewcommand{\thesection}{\arabic{section}}
-
-% No index, no glossary back-matter. Sphinx appends an index to a manual-class
-% document by default; for a controlled document it is a page of nothing, since
-% the terms that matter are in the glossary the document itself includes.
-\let\printindex\relax
-\let\printglossary\relax
-\let\printglossaries\relax
-"""
+        "\\usepackage{zdocs}\n"
+        "\\zdsetup{"
+        f"title={{{latex_escape(project)}}}, "
+        f"version={{{latex_escape(version)}}}, "
+        f"footer={{Copyright {copyright_year} {latex_escape(holder)}}}"
+        "}\n"
     )
+    if latex_style:
+        # A consumer's style file, loaded last. LaTeX finds a package by its
+        # file name, next to the .tex.
+        latex_style = Path(latex_style)
+        if latex_style.suffix != ".sty" or latex_style.stem == "zdocs":
+            raise ValueError(f"latex_style: {latex_style} must be a .sty file not named zdocs.sty")
+        latex_files.append(str(latex_style.resolve()))
+        latex_preamble += f"\\usepackage{{{latex_style.stem}}}\n"
 
     namespace.update(
         {
@@ -386,6 +330,9 @@ def configure(
                 # destination of that name. A PDF of the set links into
                 # this one by it (pdf_links): <title>_<version>.pdf#<page>:<anchor>.
                 "passoptionstopackages": r"\PassOptionsToPackage{destlabel}{hyperref}",
+                # No chapter heading style: the top level is \\section, and
+                # zdocs.sty gives the contents their own heading.
+                "fncychap": "",
                 "preamble": latex_preamble,
                 "maketitle": r"\sphinxmaketitle",
                 "printindex": "",
@@ -396,6 +343,7 @@ def configure(
             # in a zdocs set follows; a consumer that changes master_doc has to
             # restate this entry, which is the honest failure (a PDF built from
             # the wrong root would otherwise just be quietly incomplete).
+            "latex_additional_files": latex_files,
             "latex_documents": [
                 ("index", latex_target, project, author or project, "manual"),
             ],

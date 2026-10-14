@@ -1,0 +1,151 @@
+% Copyright (c) 2026 inovex GmbH
+%
+% SPDX-License-Identifier: Apache-2.0
+%
+% zdocs.sty -- the look of a zdocs PDF.
+%
+% zdocs_conf loads this package after Sphinx's own (\usepackage{sphinx}), and
+% then a consumer's style file, if the document gives one (configure(...,
+% latex_style=...)). This package changes the Sphinx layout only through what
+% Sphinx documents: its page styles "normal" and "plain", its macros
+% \sphinxtableofcontents and \sphinxmaketitle, and \sphinxsetup. It does not
+% copy or patch sphinx.sty.
+%
+% It loads no package that a Sphinx xelatex build does not load already, so a
+% TeX installation that builds a Sphinx PDF also builds a zdocs PDF.
+%
+% Settings: \zdsetup{key=value, ...}. zdocs_conf sets the values that come
+% from the build; a consumer's style file can set any of them again:
+%
+%   title     the running header, left (default: the document title)
+%   version   the running header, right (default: the document version)
+%   footer    the running footer, left (default: Copyright <year> <holder>)
+%
+% Colors: \definecolor (xcolor) again in a consumer's style file.
+%
+%   zdRule    the lines of the running header and footer
+%   zdMuted   the text of the running header and footer
+
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{zdocs}[2026/10/14 zdocs PDF layout]
+
+\RequirePackage{keyval}
+\RequirePackage{xcolor}
+\RequirePackage{fancyhdr}
+\RequirePackage{lastpage}
+% For tables and figures in a consumer's documents (raw LaTeX).
+\RequirePackage{longtable}
+\RequirePackage{array}
+\RequirePackage{booktabs}
+\RequirePackage{tabularx}
+\RequirePackage{graphicx}
+
+% -- Settings ----------------------------------------------------------------
+
+\def\zd@title{}
+\def\zd@version{}
+\def\zd@footer{}
+\define@key{zd}{title}{\def\zd@title{#1}}
+\define@key{zd}{version}{\def\zd@version{#1}}
+\define@key{zd}{footer}{\def\zd@footer{#1}}
+\newcommand{\zdsetup}[1]{\setkeys{zd}{#1}}
+
+\definecolor{zdRule}{gray}{0.55}
+\definecolor{zdMuted}{gray}{0.30}
+
+% -- Fonts -------------------------------------------------------------------
+%
+% One family for the text: the body uses the sans-serif font that Sphinx
+% already uses for the headings and the title page (FreeSans by default under
+% xelatex). The code font stays Sphinx's monospaced font. To change the fonts,
+% set them in a consumer's style file with fontspec (\setsansfont,
+% \setmonofont), or give Sphinx's latex_elements["fontpkg"].
+
+\renewcommand{\familydefault}{\sfdefault}
+
+% -- Running header and footer -------------------------------------------------
+%
+% A PDF leaves the deploy tree: it is printed, mailed and filed. The header
+% says which document and which version a page belongs to. A printed
+% controlled document that does not give its version is not a controlled
+% document.
+%
+% Sphinx selects the page styles "normal" (body) and "plain" (first page of a
+% part, contents) by name, so the package defines these two. The page count
+% is the number of the last page; the title page has no number.
+
+\newcommand{\zd@pagestyle}{%
+  \fancyhf{}%
+  \fancyhead[L]{\zd@title}%
+  \fancyhead[R]{\zd@version}%
+  \fancyfoot[L]{\zd@footer}%
+  \fancyfoot[R]{\thepage/\pageref*{LastPage}}%
+  \renewcommand{\headrulewidth}{0.4pt}%
+  \renewcommand{\footrulewidth}{0.4pt}%
+  \def\headrule{{\color{zdRule}\hrule\@height\headrulewidth\@width\headwidth
+    \vskip-\headrulewidth}}%
+  \def\footrule{{\color{zdRule}\hrule\@width\headwidth\@height\footrulewidth}}%
+}
+\fancypagestyle{normal}{\zd@pagestyle}
+\fancypagestyle{plain}{\zd@pagestyle}
+% fancyhdr 4.1 and newer: the font of the header and footer text.
+\ifdefined\fancyhfinit\fancyhfinit{\footnotesize\color{zdMuted}}\fi
+
+% -- Contents ------------------------------------------------------------------
+%
+% Sphinx puts the contents on a page of their own, under a chapter-size
+% heading (fncychap), and numbers that page in roman numerals. A controlled
+% document of a few dozen pages needs neither: the contents come after the
+% title page under a section-size heading, and the text follows on the same
+% page. The pages are numbered 1, 2, ... from the contents on, so the page
+% count in the footer is the number of pages after the title page.
+
+\renewcommand{\sphinxtableofcontents}{%
+  \begingroup
+    \parskip\z@skip
+    \sphinxtableofcontentshook
+    {\py@HeaderFamily\Large\contentsname\par}%
+    \medskip
+    \@starttoc{toc}%
+  \endgroup
+  \par\bigskip
+}
+
+% -- Sections ------------------------------------------------------------------
+%
+% Top-level headings are \section, not \chapter (latex_toplevel_sectioning):
+% no "Chapter N" banner and no page break before each one.
+%
+% \thesection must then be \arabic{section}. In this document class it is
+% \thechapter.\arabic{section}, and with no \chapter the chapter counter stays
+% 0, so each heading has the number 0.1, 0.2, 0.3.
+
+\renewcommand{\thesection}{\arabic{section}}
+
+% -- Back matter -----------------------------------------------------------------
+%
+% No index and no glossary at the end. Sphinx adds an index to a document of
+% the manual class; for a controlled document it is a page of nothing, as the
+% terms are in the glossary that the document includes.
+
+\let\printindex\relax
+\let\printglossary\relax
+\let\printglossaries\relax
+
+% -- Signature lines -----------------------------------------------------------
+%
+% The doc_control extension writes the sign-off block of the PDF with
+% \signatureline{<role>}{<name>}. The macro is always defined: an unused
+% macro costs nothing, an undefined one stops xelatex ("Undefined control
+% sequence").
+
+\newcommand{\signatureline}[2]{%
+  \noindent\textbf{#1}\par
+  \vspace{0.35cm}%
+  \noindent#2\par
+  \vspace{0.20cm}%
+  \noindent\makebox[\linewidth]{\rule{0pt}{0.5pt}\hrulefill}\par
+  \vspace{0.85cm}%
+}
+
+\endinput
