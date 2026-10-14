@@ -126,6 +126,9 @@ def configure(
         # In a PDF, a link to a local server or a relative HTML path (which
         # has no target next to the PDF) is written as text, with a warning.
         "pdf_links",
+        # In a PDF, a need table gets column widths from its content and
+        # breaks across pages.
+        "pdf_tables",
         # The `doc_control` directive: the controlled-document header (owner,
         # classification, approval dates, version). Registers `signature_section`
         # and `releaselevel` as config values, so it must be loaded even by

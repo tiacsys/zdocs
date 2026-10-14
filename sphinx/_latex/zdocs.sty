@@ -132,6 +132,43 @@
 \let\printglossary\relax
 \let\printglossaries\relax
 
+% -- Long names and tables ------------------------------------------------------
+%
+% Zephyr names are long and have no spaces: CONFIG_SAFE_DATA_LOCK_TIMEOUT_MS,
+% TC_SAFE_DATA_WRITE_RESEALS. TeX does not break them, so in a table cell they
+% go past the edge of the page. In a table and in a need card, a line can
+% break after an underscore (\zdunderscorebreaks; penalty 100, so a space is
+% still the better break). Not in the text of a page: there a name stays one
+% word. (A link target is not changed: \sphinxhref reads its URL again,
+% without this macro.)
+
+\newcommand{\zdunderscorebreaks}{%
+  \DeclareRobustCommand{\_}{%
+    \ifmmode\nfss@text{\textunderscore}\else\textunderscore\penalty100\relax\fi}%
+}
+% Sphinx starts each table with one of these two macros, in a group.
+\g@addto@macro\sphinxattablestart{\zdunderscorebreaks}
+\g@addto@macro\sphinxatlongtablestart{\zdunderscorebreaks}
+
+% Sphinx sets a table without given widths with tabulary, which gives each
+% column a width in proportion to its text. A column of short values (need
+% IDs) then becomes so narrow that each value breaks in two. A column is at
+% least \tymin wide.
+
+\setlength{\tymin}{5.5em}
+
+% A need table (pdf_tables): ragged right, as a narrow column of justified
+% text has large gaps. One that is too wide for the line: a smaller font and
+% less padding in the cells.
+% A cell resets the paragraph settings (array, varwidth), so the right margin
+% is set where Sphinx starts each paragraph (\sphinxAtStartPar). Not with
+% \raggedright: it changes \\, which ends a table row.
+\newenvironment{sphinxclasszd-needtable}{%
+  \def\sphinxAtStartPar{\rightskip\z@\@plus 2em\relax\leavevmode\nobreak\hskip\z@skip}%
+}{}
+\newenvironment{sphinxclasszd-table-small}{\footnotesize\setlength{\tabcolsep}{3pt}}{}
+\newenvironment{sphinxclasszd-table-smaller}{\scriptsize\setlength{\tabcolsep}{3pt}}{}
+
 % -- Need cards ------------------------------------------------------------------
 %
 % The need_cards extension writes each zdocs card (need_layout()) as:
@@ -169,6 +206,7 @@
   \par\addvspace{1.1\baselineskip}%
   \definecolor{zdAccent}{HTML}{#1}%
   \colorlet{zdToneaccent}{zdAccent}%
+  \zdunderscorebreaks
   \zd@needfieldsfalse
   \def\FrameCommand{{\color{zdAccent}\vrule\@width 2pt}\hspace{0.9em}}%
   \MakeFramed{\advance\hsize-\width\FrameRestore}%
