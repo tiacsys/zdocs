@@ -86,7 +86,7 @@ Re-reads a document when its sphinx-needs TOML file or the needs it imports chan
 ----------------
 
 The type colors, the status and verdict classes and the previews of the zdocs
-need cards.
+need cards, and the card in a PDF.
 
 .. automodule:: need_cards
    :members:
@@ -98,6 +98,15 @@ Writes a link that is dead in a PDF (a local server, a relative HTML path) as
 its text.
 
 .. automodule:: pdf_links
+   :members:
+
+``pdf_tables``
+----------------
+
+Gives a need table in a PDF column widths from its content, and lets it break
+across pages.
+
+.. automodule:: pdf_tables
    :members:
 
 ``xref_builder``

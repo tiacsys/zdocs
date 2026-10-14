@@ -10,5 +10,6 @@ assume you already have a docset and know your way around it.
    build-these-docs
    add-a-document
    publish-a-deploy-tree
+   change-the-look-of-the-pdf
    render-test-specifications
    run-the-test-suites

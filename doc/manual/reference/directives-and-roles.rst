@@ -551,8 +551,15 @@ give the layout such a name:
    a verdict has the color of its value.
 
 The rows stay in the sphinx-needs order (head, fields, text) in the HTML; the
-CSS shows the text before the fields. So the PDF and a screen reader still
-give the fields first.
+CSS shows the text before the fields. So a screen reader still gives the
+fields first.
+
+In a PDF, ``need_cards`` writes the card with the LaTeX macros of
+``zdocs.sty``: a bar in the accent color of the type on the left (no
+background, so that it prints well), the head with the pill as a framed
+badge, the title in bold, the text, then the fields and links with their
+labels in one column. :doc:`../howto/change-the-look-of-the-pdf` tells how to
+change it.
 
 The ``need_cards`` extension (loaded by ``zdocs_conf``) gives each card the
 ``color`` of its need type in ``needs_config.toml`` as the accent, and the
