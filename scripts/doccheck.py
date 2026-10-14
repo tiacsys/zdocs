@@ -15,7 +15,13 @@ Two failures this catches, both of which shipped silently before it existed:
 
   B. A link into the deploy tree points at a file that is not there.
 
-Both need a built deploy tree, so `--deploy` is required.  There is no
+And one for the PDF set (deploy/pdf, one <title>_<version>.pdf per document):
+
+  C. A link from one PDF into another names a file that is not in the set,
+     or a destination that the file does not have. A PDF is mailed and filed
+     as it is, so such a link stays dead; it needs pypdf to read the PDFs.
+
+All need a built deploy tree, so `--deploy` is required.  There is no
 sources-only mode: a run that checks nothing must not be able to print OK.
 
 A third check was removed rather than fixed.  It scanned document sources for
@@ -171,6 +177,58 @@ HREF_RE = re.compile(r'href="([^"#?]+)', re.I)
 _DEPLOY_LINK_SCAN_EXCLUDED = {"doxygen_crawl.html"}
 
 
+def _pdf_links(reader):
+    """(target file, destination) of each link of a PDF into another PDF: a
+    "go to remote" action, or a URI ``<file>.pdf#[nameddest=]<dest>``."""
+    from urllib.parse import unquote
+
+    for page in reader.pages:
+        for annot in page.get("/Annots") or []:
+            annot = annot.get_object()
+            action = annot.get("/A")
+            action = action.get_object() if action is not None else None
+            if annot.get("/Subtype") != "/Link" or action is None:
+                continue
+            if action.get("/S") == "/GoToR":
+                target = action.get("/F")
+                target = target.get_object() if hasattr(target, "get_object") else target
+                if isinstance(target, dict):
+                    target = target.get("/UF") or target.get("/F")
+                yield str(target), str(action.get("/D"))
+            elif action.get("/S") == "/URI":
+                path, _, frag = str(action["/URI"]).partition("#")
+                if path.endswith(".pdf") and "://" not in path:
+                    yield path, unquote(frag).removeprefix("nameddest=")
+
+
+def check_pdf_set(deploy: Path) -> list[str]:
+    """C. Links between the PDFs of deploy/pdf that have no target."""
+    pdfs = sorted((deploy / "pdf").glob("*.pdf"))
+    if not pdfs:
+        return []
+    try:
+        import pypdf
+    except ImportError:
+        return ["pdf: cannot check the links between the PDFs: pypdf is not installed"]
+    readers = {pdf.name: pypdf.PdfReader(pdf) for pdf in pdfs}
+    dests = {name: set(reader.named_destinations) for name, reader in readers.items()}
+    findings = []
+    seen = set()
+    for name, reader in readers.items():
+        for target, dest in _pdf_links(reader):
+            if target not in readers:
+                reason = "no such PDF in deploy/pdf"
+            elif dest not in dests[target]:
+                reason = "no such destination"
+            else:
+                continue
+            finding = f"pdf/{name}: dead link -> {target}#{dest} ({reason})"
+            if finding not in seen:
+                seen.add(finding)
+                findings.append(finding)
+    return findings
+
+
 def check_deploy_links(deploy: Path, base_url: str) -> list[str]:
     """C. Deploy-internal links that point at a missing file."""
     findings = []
@@ -256,6 +314,7 @@ def main() -> int:
             ("unresolved cross-references", check_xref_smoketest(args.deploy, smoke_page))
         )
     groups.append(("dead deploy links", check_deploy_links(args.deploy, base_url)))
+    groups.append(("dead links between the PDFs", check_pdf_set(args.deploy)))
 
     total = 0
     matched: set[str] = set()

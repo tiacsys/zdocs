@@ -33,6 +33,9 @@ sphinxcontrib-doxylink==1.13.0
 # scripts/docrefs.py, scripts/doccheck.py and sphinx/_scripts/rst_builders.py
 # all `import yaml` to read documents.yaml. The engine is unusable without it.
 PyYAML==6.0.3
+# scripts/doccheck.py reads the PDF set (deploy/pdf) to check the links from
+# one PDF into another. Only a set with PDFs needs it.
+pypdf==6.15.0
 
 # -- Optional builders ---------------------------------------------------------
 # sphinx-autobuild backs the `<doc>-html-live` targets (see cmake/sphinx.cmake).
