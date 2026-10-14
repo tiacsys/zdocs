@@ -276,6 +276,17 @@ function(add_sphinx_target doc_name)
     add_dependencies(${doc_name}-index ${dep}-index)
   endforeach()
 
+  # The PDF's name in the set comes from the registry entry (title) and the
+  # version, which follows the tags of ZDOCS_PROJECT_BASE.
+  set(_zdocs_pdf_args "")
+  if(ARGS_REGISTRY)
+    list(APPEND _zdocs_pdf_args --registry ${ARGS_REGISTRY})
+  endif()
+  set(_zdocs_pdf_deliver_args ${_zdocs_pdf_args})
+  if(NOT ZDOCS_PROJECT_BASE STREQUAL "")
+    list(APPEND _zdocs_pdf_deliver_args --repo-root ${ZDOCS_PROJECT_BASE})
+  endif()
+
   foreach(builder ${ARGS_BUILDERS})
     set(target_name ${doc_name}-${builder})
     if(builder STREQUAL "latex")
@@ -284,6 +295,12 @@ function(add_sphinx_target doc_name)
       set(builder_folder "${builder}")
     endif()
     set(builder_out_dir ${CMAKE_CURRENT_BINARY_DIR}/deploy/${builder_folder}/${doc_name})
+    if(builder STREQUAL "latex")
+      # The LaTeX build directory is a work area, not a deliverable: only its
+      # PDF goes into deploy/pdf, the PDF set, as <title>_<version>.pdf
+      # (docrefs.py pdf-deliver, below).
+      set(builder_out_dir ${DOC_OUT_DIR}/latex)
+    endif()
     set(sphinx_executable ${SPHINXBUILD})
     set(extra_sphinx_args "")
     set(extra_commands "")
@@ -337,6 +354,18 @@ function(add_sphinx_target doc_name)
         ${LATEXMK}
         -pdf
         ${doc_name}.tex
+        COMMAND
+        ${CMAKE_COMMAND}
+        -E
+        env
+        ${SPHINX_ENV}
+        ${PYTHON_EXECUTABLE}
+        ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../scripts/docrefs.py
+        pdf-deliver
+        ${doc_name}
+        ${builder_out_dir}/${doc_name}.pdf
+        ${CMAKE_CURRENT_BINARY_DIR}/deploy/pdf
+        ${_zdocs_pdf_deliver_args}
       )
     else()
       set(builder_arg ${builder})
@@ -396,16 +425,24 @@ function(add_sphinx_target doc_name)
   # Per-document clean. Keeps ${DOC_OUT_DIR}/.git (the configure-time sphinx-git
   # pointer) so a rebuild works without reconfiguring.
   set(_zdocs_clean_deploy_dirs ${CMAKE_CURRENT_BINARY_DIR}/deploy/html/${doc_name})
+  set(_zdocs_clean_pdf "")
   foreach(builder ${ARGS_BUILDERS})
     if(builder STREQUAL "latex")
-      set(_zdocs_clean_folder "pdf")
+      # The LaTeX work area, and this document's PDFs in the PDF set.
+      list(APPEND _zdocs_clean_deploy_dirs ${DOC_OUT_DIR}/latex)
+      set(
+        _zdocs_clean_pdf
+        COMMAND
+        ${PYTHON_EXECUTABLE}
+        ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../scripts/docrefs.py
+        pdf-remove
+        ${doc_name}
+        ${CMAKE_CURRENT_BINARY_DIR}/deploy/pdf
+        ${_zdocs_pdf_args}
+      )
     else()
-      set(_zdocs_clean_folder "${builder}")
+      list(APPEND _zdocs_clean_deploy_dirs ${CMAKE_CURRENT_BINARY_DIR}/deploy/${builder}/${doc_name})
     endif()
-    list(
-      APPEND _zdocs_clean_deploy_dirs
-      ${CMAKE_CURRENT_BINARY_DIR}/deploy/${_zdocs_clean_folder}/${doc_name}
-    )
   endforeach()
   list(REMOVE_DUPLICATES _zdocs_clean_deploy_dirs)
 
@@ -414,6 +451,7 @@ function(add_sphinx_target doc_name)
     COMMAND
       ${CMAKE_COMMAND} -E rm -rf ${DOCS_SRC_DIR} ${DOCS_DOCTREE_DIR} ${DOCS_INDEX_DOCTREE_DIR}
       ${DOC_OUT_DIR}/doctrees-latex ${DOCS_BUILD_DIR} ${_zdocs_clean_deploy_dirs}
+    ${_zdocs_clean_pdf}
     COMMENT "Cleaning document ${doc_name}..."
   )
   add_dependencies(clean-docs ${doc_name}-clean)

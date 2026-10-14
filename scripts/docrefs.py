@@ -38,8 +38,10 @@ import json
 import os
 import posixpath
 import re
+import shutil
 import subprocess
 import sys
+import unicodedata
 from pathlib import Path
 from urllib.error import URLError
 from urllib.parse import urlsplit, urlunsplit
@@ -413,6 +415,22 @@ def _validate(data):
                         f"point spec: at a document that already has it"
                     )
 
+    # -- The PDF set: one file name per document ------------------------------
+    #
+    # The PDFs go into one folder as <title>_<version>.pdf (pdf_file_name). Two
+    # documents with the same title part would share a name, and one PDF would
+    # replace the other.
+    by_title = {}
+    for doc_id, meta in data.get("documents", {}).items():
+        if meta.get("kind", "sphinx") == "sphinx" and "latex" in meta.get("builders", []):
+            by_title.setdefault(pdf_title_part(meta.get("title") or doc_id), []).append(doc_id)
+    clash = {part: ids for part, ids in by_title.items() if len(ids) > 1}
+    if clash:
+        raise ValueError(
+            f"docrefs: documents with a 'latex' builder have the same title in "
+            f"their PDF file name ({clash}) — give each its own 'title:'"
+        )
+
 
 def _groups(data):
     """Ordered ``[{id, title, mode, display}]`` from the registry ``groups:`` list."""
@@ -478,7 +496,13 @@ def build_root():
     both nest the same two path segments (a builder name and a doc id, in
     either order) between ``deploy`` and the root. Useful for locating
     sibling deploy artifacts (e.g. a Doxygen project's XML for Breathe).
+
+    ``ZDOCS_DOC_BUILD_DIR`` (set by cmake/sphinx.cmake) wins: the LaTeX build
+    writes outside ``deploy/`` (its PDF goes into ``deploy/pdf`` afterwards),
+    so its ``OUTPUT_DIR`` does not have this shape.
     """
+    if os.environ.get("ZDOCS_DOC_BUILD_DIR"):
+        return Path(os.environ["ZDOCS_DOC_BUILD_DIR"]).resolve()
     return Path(os.environ["OUTPUT_DIR"]).resolve().parents[2]
 
 
@@ -489,7 +513,10 @@ def _this_doc():
     (``deploy/<id>/html``) to being ``OUTPUT_DIR``'s OWN name
     (``deploy/html/<id>``) — the builder folder and the doc id swapped
     places, so the doc id is now the last path segment, not the second-to-last.
+    ``ZDOCS_DOC_ID`` (set by cmake/sphinx.cmake) wins, as in `build_root`.
     """
+    if os.environ.get("ZDOCS_DOC_ID"):
+        return os.environ["ZDOCS_DOC_ID"]
     return Path(os.environ["OUTPUT_DIR"]).resolve().name
 
 
@@ -655,6 +682,79 @@ def resolve_version(*, scope=None, project=None, repo_root=None, west=None):
     return _fallback_version(repo_root)
 
 
+def _file_part(text, keep):
+    """``text`` as a part of a file name: ASCII letters, digits, ``-`` and the
+    characters in ``keep``; white space and ``/`` become ``-``."""
+    text = unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode()
+    text = re.sub(r"[\s/]+", "-", text.strip())
+    text = re.sub(rf"[^A-Za-z0-9{re.escape(keep)}-]", "", text)
+    return re.sub(r"-{2,}", "-", text).strip("-")
+
+
+def pdf_title_part(title):
+    """The title part of a PDF's file name: ``Requirement Specification`` ->
+    ``Requirement-Specification``. It has no ``_``, so ``<title part>_`` starts
+    the names of this document's PDFs only."""
+    return _file_part(title, ".")
+
+
+def pdf_file_name(title, version):
+    """The file name of a document's PDF in the PDF set: ``<title>_<version>.pdf``,
+    e.g. ``Requirement-Specification_1.2.pdf``."""
+    return f"{pdf_title_part(title)}_{_file_part(version, '.+')}.pdf"
+
+
+def pdf_files(documents, repo_root=None):
+    """``{doc id: PDF file name}`` of each document of the set with a ``latex`` builder.
+
+    The version is the one the document shows (`resolve_version`, its
+    ``version_scope`` in ``repo_root``), so a document's PDF and the links of
+    its peers into it name the same file. `_validate` rejects two documents
+    with the same title part.
+    """
+    files = {}
+    for doc_id, meta in documents.items():
+        if meta.get("kind", "sphinx") != "sphinx" or "latex" not in meta.get("builders", []):
+            continue
+        version = resolve_version(scope=meta.get("version_scope"), repo_root=repo_root)
+        files[doc_id] = pdf_file_name(meta.get("title") or doc_id, version)
+    return files
+
+
+def _pdf_meta(doc_id, registry):
+    """The registry entry of ``doc_id`` as `pdf_files` reads it; without a
+    registry (a standalone add_sphinx_target), the doc id is the title."""
+    meta = dict(_registry(registry)["documents"][doc_id]) if registry else {"title": doc_id}
+    meta.setdefault("builders", ["latex"])
+    if "latex" not in meta["builders"]:
+        meta["builders"] = [*meta["builders"], "latex"]
+    return meta
+
+
+def remove_pdfs(doc_id, pdf_dir, registry=None, keep=None):
+    """Remove the PDFs of ``doc_id`` from ``pdf_dir``, but not ``keep`` (a file name)."""
+    meta = _pdf_meta(doc_id, registry)
+    prefix = f"{pdf_title_part(meta.get('title') or doc_id)}_"
+    for old in Path(pdf_dir).glob(f"{prefix}*.pdf"):
+        if old.name != keep:
+            old.unlink()
+
+
+def deliver_pdf(doc_id, pdf, pdf_dir, registry=None, repo_root=None):
+    """Copy ``pdf`` (latexmk's output) into ``pdf_dir`` as this document's set file.
+
+    Other versions of this document's PDF in ``pdf_dir`` are removed: the set
+    holds one version of each document. Returns the path of the copy.
+    """
+    name = pdf_files({doc_id: _pdf_meta(doc_id, registry)}, repo_root)[doc_id]
+    pdf_dir = Path(pdf_dir)
+    pdf_dir.mkdir(parents=True, exist_ok=True)
+    remove_pdfs(doc_id, pdf_dir, registry, keep=name)
+    target = pdf_dir / name
+    shutil.copyfile(pdf, target)
+    return target
+
+
 class Refs:
     """Derived cross-document link structures for the current document."""
 
@@ -671,6 +771,7 @@ class Refs:
         testmodule=None,
         symbol_needs=None,
         doxygen_docs=None,
+        pdf_peers=None,
     ):
         self.reference_groups = reference_groups
         self.intersphinx_mapping = intersphinx_mapping
@@ -699,6 +800,10 @@ class Refs:
         #: extension that a ``conf.py`` points at a Doxygen document by id
         #: (``testcoverage_source_docs``).
         self.doxygen_docs = doxygen_docs or {}
+        #: ``{peer URL: PDF file name}`` of the peers in the PDF set, for a
+        #: build outside ``deploy/html`` (empty in HTML). ``pdf_links`` turns
+        #: a link into such a peer into a link to its PDF.
+        self.pdf_peers = pdf_peers or {}
 
 
 def _resolve_external_url(url, external_base_url):
@@ -868,6 +973,18 @@ def load(this_doc=None, registry=None):
     # ``../`` prefix only in front of a relative one.
     link_urls = {doc_id: _peer_url(doc_id, documents[doc_id]) for doc_id in rel_urls}
 
+    # The PDF set (deploy/pdf): the peers with a PDF, by the URL by which this
+    # output links them. A PDF links such a peer's PDF instead (pdf_links).
+    # Not in HTML: each entry costs a `git describe`.
+    pdf_peers = {}
+    if not relative_links:
+        pdf_set = pdf_files(documents, os.environ.get("ZDOCS_PROJECT_BASE") or None)
+        pdf_peers = {
+            _peer_url(doc_id, documents[doc_id]): name
+            for doc_id, name in pdf_set.items()
+            if doc_id != this_doc
+        }
+
     # Nav links, grouped by the registry's `groups:`. sphinx/doxygen -> the
     # peer's index page (relative ones are relative to this doc's html root;
     # layout.html prefixes them with the page's own content_root); external ->
@@ -1032,6 +1149,7 @@ def load(this_doc=None, registry=None):
         testmodule=testmodule,
         symbol_needs=symbol_needs,
         doxygen_docs=doxygen_docs,
+        pdf_peers=pdf_peers,
     )
 
 
@@ -1448,6 +1566,29 @@ def _cli(argv=None):
         help="path to the document registry (documents.yaml)",
     )
 
+    p_pdf = sub.add_parser(
+        "pdf-deliver",
+        help="copy a document's PDF into the PDF set as <title>_<version>.pdf",
+        description="Copy latexmk's PDF of a document into the PDF set folder "
+        "(deploy/pdf) under the name its peers link to, <title>_<version>.pdf, "
+        "and remove the other versions of this document's PDF there.",
+    )
+    p_pdf.add_argument("doc_id", help="registry id of the document")
+    p_pdf.add_argument("pdf", help="the PDF that latexmk wrote")
+    p_pdf.add_argument("pdf_dir", help="the PDF set folder, e.g. <build>/deploy/pdf")
+    p_pdf.add_argument("--registry", metavar="documents.yaml", default=None)
+    p_pdf.add_argument(
+        "--repo-root", metavar="DIR", default=None,
+        help="the repository whose tags give the version (ZDOCS_PROJECT_BASE)",
+    )
+
+    p_pdf_rm = sub.add_parser(
+        "pdf-remove", help="remove a document's PDFs from the PDF set folder"
+    )
+    p_pdf_rm.add_argument("doc_id", help="registry id of the document")
+    p_pdf_rm.add_argument("pdf_dir", help="the PDF set folder, e.g. <build>/deploy/pdf")
+    p_pdf_rm.add_argument("--registry", metavar="documents.yaml", default=None)
+
     p_version = sub.add_parser(
         "version",
         help="print a document's git-derived version string",
@@ -1490,6 +1631,13 @@ def _cli(argv=None):
             needs_tag(args.doc_id, args.deploy_dir, args.registry)
         except ValueError as exc:
             sys.exit(str(exc))
+    elif args.command == "pdf-deliver":
+        target = deliver_pdf(
+            args.doc_id, args.pdf, args.pdf_dir, args.registry, args.repo_root or None
+        )
+        sys.stdout.write(f"{target}\n")
+    elif args.command == "pdf-remove":
+        remove_pdfs(args.doc_id, args.pdf_dir, args.registry or None)
     elif args.command == "version":
         meta = _registry(args.registry)["documents"].get(args.doc_id, {})
         ver = resolve_version(

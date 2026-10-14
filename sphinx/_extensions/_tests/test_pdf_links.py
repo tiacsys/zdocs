@@ -7,7 +7,7 @@
 from pathlib import Path
 
 import pytest
-from pdf_links import dead_in_pdf
+from pdf_links import dead_in_pdf, pdf_target
 
 _ROOT = str(Path(__file__).parent / "roots" / "test-pdflinks")
 
@@ -33,6 +33,46 @@ _ROOT = str(Path(__file__).parent / "roots" / "test-pdflinks")
 )
 def test_dead_in_pdf(uri, dead):
     assert dead_in_pdf(uri) is dead
+
+
+PEERS = {
+    "https://docs.example.org/html/requirement-specification": "Requirement-Specification_1.2.pdf"
+}
+
+
+@pytest.mark.parametrize(
+    "uri, target",
+    [
+        (
+            "https://docs.example.org/html/requirement-specification/detailed.html#SD-REQ-001",
+            "Requirement-Specification_1.2.pdf#detailed:SD-REQ-001",
+        ),
+        (
+            "https://docs.example.org/html/requirement-specification/safe_data/x.html#a-b",
+            "Requirement-Specification_1.2.pdf#safe_data/x:a-b",
+        ),
+        (
+            "https://docs.example.org/html/requirement-specification/detailed.html",
+            "Requirement-Specification_1.2.pdf#detailed::doc",
+        ),
+        (
+            "https://docs.example.org/html/requirement-specification/",
+            "Requirement-Specification_1.2.pdf#index::doc",
+        ),
+        ("https://docs.example.org/html/requirement-specification-old/x.html#A", None),
+        ("https://docs.example.org/html/test-report/index.html#TR-1", None),
+    ],
+)
+def test_pdf_target(uri, target):
+    assert pdf_target(uri, PEERS) == target
+
+
+@pytest.mark.sphinx("latex", srcdir=_ROOT)
+def test_a_link_to_a_peer_in_the_set_goes_to_its_pdf(app):
+    app.build()
+    tex = (Path(app.outdir) / "pdflinks.tex").read_text()
+    assert "\\sphinxhref{Requirement-Specification\\_1.2.pdf\\#detailed:SD-REQ-001}{" in tex
+    assert "\\PassOptionsToPackage{destlabel}{hyperref}" not in tex  # zdocs_conf sets it
 
 
 @pytest.mark.sphinx("latex", srcdir=_ROOT)
@@ -63,7 +103,8 @@ def test_a_link_marked_internal_with_an_external_target_is_text_too():
     )
     para += nodes.reference("", "here", internal=True, refuri="%index#target")
     doc += para
-    _unlink(SimpleNamespace(builder=SimpleNamespace(format="latex")), doc, "index")
+    app = SimpleNamespace(builder=SimpleNamespace(format="latex"), config=SimpleNamespace())
+    _unlink(app, doc, "index")
     refs = list(doc.findall(nodes.reference))
     assert [r["refuri"] for r in refs] == ["%index#target"]
     assert para.astext() == "TC_1here"

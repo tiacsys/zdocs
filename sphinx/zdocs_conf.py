@@ -381,6 +381,11 @@ def configure(
                 # single-sided far more often than it is bound. openany goes
                 # with it: no forced recto start per top-level heading.
                 "classoptions": "oneside,openany",
+                # destlabel: each LaTeX label (Sphinx writes one per need,
+                # section and page, "<page>:<anchor>") is also a named
+                # destination of that name. A PDF of the set links into
+                # this one by it (pdf_links): <title>_<version>.pdf#<page>:<anchor>.
+                "passoptionstopackages": r"\PassOptionsToPackage{destlabel}{hyperref}",
                 "preamble": latex_preamble,
                 "maketitle": r"\sphinxmaketitle",
                 "printindex": "",
@@ -434,6 +439,8 @@ def configure(
         # The XML and HTML of each Doxygen document, by registry id
         # (testcoverage_source_docs names some of them).
         namespace["zdocs_doxygen_docs"] = refs.doxygen_docs
+        # The peers in the PDF set, by URL: a PDF links their PDF (pdf_links).
+        namespace["zdocs_pdf_peers"] = refs.pdf_peers
     if testmodule is not None:
         namespace["testmodule_xml_dir"] = testmodule["xml_dir"]
         namespace["testspec_doxygen_url"] = testmodule["doxygen_url"]
