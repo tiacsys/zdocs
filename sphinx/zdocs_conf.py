@@ -208,12 +208,19 @@ def configure(
     # "Smith & Co", a document id with an underscore — and unescaped they are a
     # compile error at the very end of a long build, not a typo on a page.
     latex_files = [str(ZDOCS_DOC_DIR / "_latex" / "zdocs.sty")]
+    # The PDFs of the set that this one links to: the title page names them.
+    set_files = "".join(
+        f"\\zdsetfile{{{latex_escape(name)}}}"
+        for name in sorted(set(refs.pdf_peers.values()) if refs else ())
+    )
     latex_preamble = (
         "\\usepackage{zdocs}\n"
         "\\zdsetup{"
         f"title={{{latex_escape(project)}}}, "
         f"version={{{latex_escape(version)}}}, "
-        f"footer={{Copyright {copyright_year} {latex_escape(holder)}}}"
+        f"docid={{{latex_escape(doc_id)}}}, "
+        f"footer={{Copyright {copyright_year} {latex_escape(holder)}}}, "
+        f"set={{{set_files}}}"
         "}\n"
     )
     if latex_style:

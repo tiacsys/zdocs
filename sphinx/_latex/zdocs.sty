@@ -20,11 +20,15 @@
 %   title     the running header, left (default: the document title)
 %   version   the running header, right (default: the document version)
 %   footer    the running footer, left (default: Copyright <year> <holder>)
+%   docid     the document ID in the registry (title page)
+%   set       the PDFs of the set that this one links to, each as
+%             \zdsetfile{<file name>} (title page)
 %
 % Colors: \definecolor (xcolor) again in a consumer's style file.
 %
 %   zdRule    the lines of the running header and footer
 %   zdMuted   the text of the running header and footer
+%   zdLabel   a label: of a field in a need card, of a row on the title page
 
 \NeedsTeXFormat{LaTeX2e}
 \ProvidesPackage{zdocs}[2026/10/14 zdocs PDF layout]
@@ -45,13 +49,18 @@
 \def\zd@title{}
 \def\zd@version{}
 \def\zd@footer{}
+\def\zd@docid{}
+\def\zd@set{}
 \define@key{zd}{title}{\def\zd@title{#1}}
 \define@key{zd}{version}{\def\zd@version{#1}}
 \define@key{zd}{footer}{\def\zd@footer{#1}}
+\define@key{zd}{docid}{\def\zd@docid{#1}}
+\define@key{zd}{set}{\def\zd@set{#1}}
 \newcommand{\zdsetup}[1]{\setkeys{zd}{#1}}
 
 \definecolor{zdRule}{gray}{0.55}
 \definecolor{zdMuted}{gray}{0.30}
+\definecolor{zdLabel}{gray}{0.40}
 
 % -- Fonts -------------------------------------------------------------------
 %
@@ -90,6 +99,67 @@
 \fancypagestyle{plain}{\zd@pagestyle}
 % fancyhdr 4.1 and newer: the font of the header and footer text.
 \ifdefined\fancyhfinit\fancyhfinit{\footnotesize\color{zdMuted}}\fi
+
+% -- Title page ------------------------------------------------------------------
+%
+% The title and the version, then the data of the document: ID, date, author. If the
+% PDF links to other PDFs of its set, the title page names their files: the
+% links work only while the files are in one folder.
+%
+% Like Sphinx's own \sphinxmaketitle (sphinxmanual.cls): the PDF information
+% (title, author), and no page anchor on the title page.
+
+\definecolor{zdTitleRule}{gray}{0.25}
+
+\newcommand{\zdsetfile}[1]{\item[]\texttt{#1}}
+
+\newcommand{\zd@titlerow}[2]{%
+  \if\relax\detokenize{#2}\relax\else
+    {\color{zdLabel}#1} & #2\\[0.25\baselineskip]
+  \fi
+}
+
+\renewcommand{\sphinxmaketitle}{%
+  \let\sphinxrestorepageanchorsetting\relax
+  \ifHy@pageanchor\def\sphinxrestorepageanchorsetting{\Hy@pageanchortrue}\fi
+  \hypersetup{pageanchor=false}%
+  \begin{titlepage}%
+    \begingroup
+      \def\endgraf{ }\def\and{\& }%
+      \pdfstringdefDisableCommands{\def\\{, }}%
+      \hypersetup{pdfauthor={\@author}, pdftitle={\@title}}%
+    \endgroup
+    \raggedright
+    \vspace*{0.12\textheight}%
+    {\color{zdTitleRule}\rule{\linewidth}{1.5pt}}\par
+    \vspace{1.2\baselineskip}%
+    {\py@HeaderFamily\Huge\@title\par}%
+    \vspace{0.6\baselineskip}%
+    {\Large\zd@version\par}%
+    \vspace{1.2\baselineskip}%
+    {\color{zdTitleRule}\rule{\linewidth}{0.4pt}}\par
+    \vspace{2\baselineskip}%
+    \begin{tabular}{@{}l@{\hspace{2em}}l@{}}
+      \zd@titlerow{Document}{\zd@docid}%
+      \zd@titlerow{Date}{\@date}%
+      \zd@titlerow{Author}{\@author}%
+    \end{tabular}\par
+    \vfill
+    \ifx\zd@set\@empty\else
+      {\small
+       \textbf{Linked documents.} This PDF links to the PDFs below. The links
+       work while these files are in the same folder as this one, with these
+       names.\par
+       \begin{itemize}\setlength{\itemsep}{0pt}\zd@set\end{itemize}}%
+      \vspace{\baselineskip}%
+    \fi
+    {\small\color{zdMuted}\zd@footer\par}%
+  \end{titlepage}%
+  \setcounter{footnote}{0}%
+  \let\thanks\relax\let\maketitle\relax
+  \clearpage
+  \sphinxrestorepageanchorsetting
+}
 
 % -- Contents ------------------------------------------------------------------
 %
@@ -193,7 +263,6 @@
 
 \RequirePackage{framed}
 
-\definecolor{zdLabel}{gray}{0.40}
 \definecolor{zdTonegood}{HTML}{116329}
 \definecolor{zdTonebad}{HTML}{A40E26}
 \definecolor{zdTonegap}{HTML}{7D4E00}
