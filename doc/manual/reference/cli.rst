@@ -81,8 +81,8 @@ runs it) and as the standalone ``doc-check`` target, for re-checking an
 existing deploy tree without rebuilding it. Source:
 :external+zdocs-api:py:mod:`doccheck`.
 
-Two checks, neither of which a green ``sphinx-build``/``doxygen`` log catches on
-its own. Both read the built deploy tree, so ``--deploy`` is required — there
+Three checks, none of which a green ``sphinx-build``/``doxygen`` log catches on
+its own. All read the built deploy tree, so ``--deploy`` is required — there
 is no sources-only mode, because a run that checks nothing must not be able to
 report success.
 
@@ -100,6 +100,13 @@ B. **Dead deploy links** — scans every rendered
    against the page's own directory, and skips anything that escapes the
    deploy tree entirely (external links, ``mailto:``, and similar) — policing
    those is not this check's job.
+
+C. **Dead links between the PDFs** — reads each PDF of the PDF set
+   (``deploy/pdf``) and flags a link into another PDF whose file is not in
+   the set or has no such named destination
+   (:doc:`../explanation/decisions/0013-linked-pdf-set`). Needs ``pypdf``
+   (``sphinx/requirements-doc.txt``); without it, a set with PDFs is a
+   finding. Without PDFs, the check has nothing to read.
 
 Exit codes: **0** clean, **1** one or more findings (printed to stderr, grouped
 by check, with a final ``doccheck: FAILED with N finding(s)`` line), **2** bad

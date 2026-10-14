@@ -11,15 +11,18 @@ organised by builder:
        manual/
        api/
        widget/      <- Doxygen documents are peers here
-     pdf/           <- the latex builder's folder, named for what it delivers
-       handbook/
+     pdf/           <- the PDF set: one <title>_<version>.pdf per latex document
+       Handbook_1.4.pdf
      xml/           <- Doxygen XML: machine input, never published
        widget/
 
 Publishing is a directory sync of ``deploy/html/``, and optionally
 ``deploy/pdf/``. Nothing else needs selecting, excluding or post-processing —
 which is the whole reason for this shape. See
-:doc:`decisions/0006-deploy-tree-by-builder`.
+:doc:`decisions/0006-deploy-tree-by-builder`. The PDFs of ``deploy/pdf`` link
+to each other by their file names, so they are distributed as one folder
+(:doc:`decisions/0013-linked-pdf-set`); the LaTeX build directory of a
+document is a work area at ``<build>/<document>/latex``.
 
 What is servable, and what is not
 ---------------------------------

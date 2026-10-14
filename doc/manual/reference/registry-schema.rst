@@ -140,7 +140,10 @@ Each entry in ``documents:``, keyed by its id:
 
 ``title``
    Shown in navigation and as the Sphinx project title (``html_title``). Falls
-   back to the bare id if omitted.
+   back to the bare id if omitted. For a document with the ``latex`` builder,
+   it also names the PDF in the PDF set: ``<title>_<version>.pdf``, white space
+   as ``-`` (:doc:`../explanation/decisions/0013-linked-pdf-set`). Two such
+   documents whose titles give the same name are a configure-time error.
 
 ``prefix``
    The document's cross-reference :term:`prefix`. Defaults to the id with
