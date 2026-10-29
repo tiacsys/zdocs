@@ -10,8 +10,9 @@ own git identity.
 
     docctl list
     docctl author <document-id> [--version VERSION]
-    docctl review <document-id> [--force]
+    docctl review <document-id> [--force] [--user NAME] [--email EMAIL]
     docctl approve <document-id> [--effective-date YYYY-MM-DD] [--force]
+                                 [--user NAME] [--email EMAIL]
     docctl bump-version <document-id> [--major | --minor]
 
 Documents are looked up by id in a ``documents.yaml`` registry (default:
@@ -49,6 +50,16 @@ matches against to render the sidebar's version.
 author is a different person than the reviewer") if the commit that set
 ``author`` (found via ``git blame`` on that line) was made by the same
 person now running ``review``, identified by committer email.
+
+``--user``/``--email`` (``review``/``approve`` only) are for reviewers and
+approvers who don't use git and just sign the PDF: the given name/email is
+stamped into the document instead of git's (each falling back to git config
+if only one is given), and the segregation-of-duties check applies to that
+stamped person. The commit is still signed off by the git identity actually
+committing; its body records that the action was entered on behalf of the
+stamped person, who authorized it, and that the PDF signature is the
+evidence of record, and the Reviewed-by/Approved-by trailer names that
+person.
 
 ``--force`` overrides either check: on ``review`` it allows self-review; on
 ``approve`` it allows approving without a committed review.
@@ -369,16 +380,52 @@ def _git_identity(repo_root):
     return f"{name} <{email}>"
 
 
-def _commit(repo_root, path, subject, identity, trailer_key=None):
+def _stamped_identity(git_identity, user=None, email=None):
+    """Identity to stamp into the document: ``user``/``email`` (from
+    ``--user``/``--email``) replace the matching part of ``git_identity``
+    ("Name <email>"); an option not given falls back to git config.
+    Returns ``(stamped_identity, on_behalf)`` — ``on_behalf`` is True when
+    at least one override was given, i.e. the person stamped is not (fully)
+    the person running docctl.
+    """
+    for opt, value in (("--user", user), ("--email", email)):
+        if value is not None and not value.strip():
+            raise DocctlError(f"{opt} must not be empty")
+    if email is not None and "@" not in email:
+        raise DocctlError(f"--email must be an email address, got: {email!r}")
+
+    m = re.match(r"^(?P<name>.*?)\s*<(?P<email>[^>]*)>\s*$", git_identity)
+    git_name, git_email = (m.group("name"), m.group("email")) if m else (git_identity, "")
+    name = user.strip() if user is not None else git_name
+    mail = email.strip() if email is not None else git_email
+    return f"{name} <{mail}>", user is not None or email is not None
+
+
+def _commit(repo_root, path, subject, identity, trailer_key=None, on_behalf_of=None):
     """Stage ``path`` and commit signed-off (``-s``) and GPG-signed (``-S``).
-    ``-s`` already appends a ``Signed-off-by:`` trailer using ``identity``;
-    pass ``trailer_key`` to additionally record a distinct action (e.g.
-    "Reviewed-by") when a plain Signed-off-by doesn't say enough on its own.
+    ``-s`` already appends a ``Signed-off-by:`` trailer using the git
+    config identity (the person actually committing); pass ``trailer_key``
+    to additionally record a distinct action (e.g. "Reviewed-by") when a
+    plain Signed-off-by doesn't say enough on its own.
+
+    ``on_behalf_of`` (a stamped identity that differs from the committer,
+    see ``--user``/``--email``) adds a body line saying so, and makes the
+    ``trailer_key`` trailer name that person rather than the committer —
+    the Signed-off-by (committer) vs Reviewed-by/Approved-by (stamped
+    person) pair then records both who acted and who they acted for.
     """
     _git(["add", "--", str(path)], cwd=repo_root)
     message = f"{subject}\n"
+    if on_behalf_of:
+        action = {"Reviewed-by": "Review", "Approved-by": "Approval"}.get(trailer_key, "Entry")
+        message += (
+            f"\n{action} recorded by {identity} on behalf of {on_behalf_of}, "
+            f"who authorized this entry.\n"
+            f"Evidence of record: the signature of {on_behalf_of} on the archived "
+            f"PDF document; this commit only transcribes it.\n"
+        )
     if trailer_key:
-        message += f"\n{trailer_key}: {identity}\n"
+        message += f"\n{trailer_key}: {on_behalf_of or identity}\n"
     _git(["commit", "-s", "-S", "-m", message], cwd=repo_root)
     sha = _git(["rev-parse", "--short", "HEAD"], cwd=repo_root)
     print(f"Committed {sha}: {subject}")
@@ -453,7 +500,8 @@ def cmd_author(args):
 
 
 def cmd_review(args):
-    doc_file, repo_root, identity = _resolve(args)
+    doc_file, repo_root, committer = _resolve(args)
+    identity, on_behalf = _stamped_identity(committer, args.user, args.email)
     existing = _require(doc_file, args.document_id, "author", "author")
 
     if not args.force:
@@ -472,13 +520,15 @@ def cmd_review(args):
         repo_root,
         doc_file,
         _subject("Review", args.document_id, existing.get("version", "")),
-        identity,
+        committer,
         "Reviewed-by",
+        on_behalf_of=identity if on_behalf else None,
     )
 
 
 def cmd_approve(args):
-    doc_file, repo_root, identity = _resolve(args)
+    doc_file, repo_root, committer = _resolve(args)
+    identity, on_behalf = _stamped_identity(committer, args.user, args.email)
 
     if not args.force:
         existing = _require(doc_file, args.document_id, "reviewed_by", "review")
@@ -515,7 +565,14 @@ def cmd_approve(args):
     print(f"Updated {doc_file}: " + ", ".join(f"{k} = {v}" for k, v in updates.items()))
 
     subject = _subject("Approve", args.document_id, version)
-    _commit(repo_root, doc_file, subject, identity, "Approved-by")
+    _commit(
+        repo_root,
+        doc_file,
+        subject,
+        committer,
+        "Approved-by",
+        on_behalf_of=identity if on_behalf else None,
+    )
     _tag(repo_root, f"{args.document_id}/{version}", subject)
 
 
@@ -605,6 +662,18 @@ def main(argv=None):
         action="store_true",
         help="allow reviewing a document whose 'author' commit is your own (normally refused)",
     )
+    p_review.add_argument(
+        "--user",
+        metavar="NAME",
+        help="stamp this name instead of git's user.name — for a reviewer who "
+        "signs the PDF rather than using git; the commit records it as "
+        "done on their behalf",
+    )
+    p_review.add_argument(
+        "--email",
+        metavar="EMAIL",
+        help="stamp this email instead of git's user.email (see --user)",
+    )
     p_review.set_defaults(func=cmd_review)
 
     p_approve = sub.add_parser("approve", help="set approved_by/approval_date and commit")
@@ -619,6 +688,18 @@ def main(argv=None):
         action="store_true",
         help="allow approving a document whose 'reviewed_by' isn't backed by "
         "a commit (normally refused)",
+    )
+    p_approve.add_argument(
+        "--user",
+        metavar="NAME",
+        help="stamp this name instead of git's user.name — for an approver who "
+        "signs the PDF rather than using git; the commit records it as "
+        "done on their behalf",
+    )
+    p_approve.add_argument(
+        "--email",
+        metavar="EMAIL",
+        help="stamp this email instead of git's user.email (see --user)",
     )
     p_approve.set_defaults(func=cmd_approve)
 
