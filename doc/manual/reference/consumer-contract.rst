@@ -118,7 +118,31 @@ from outside your ``CMakeLists.txt``.
 
 ``ZDOCS_SPHINXOPTS_EXTRA``
    Default empty. Appended after ``ZDOCS_SPHINXOPTS``, for options you want to
-   add without restating the defaults.
+   add without restating the defaults. For a build that fails on warnings,
+   prefer ``ZDOCS_STRICT`` to ``-W`` here: with ``-W`` the build stops at the
+   first document that fails.
+
+``ZDOCS_STRICT``
+   Boolean, default ``OFF``. Strict mode: the
+   :external+zdocs-api:cmake:command:`add_doc_check <command:add_doc_check>`
+   gate (the ``POST_BUILD`` step of ``all-docs`` and the ``doc-check`` target)
+   also fails on every warning and error in each Sphinx document's stage-2
+   build — a dangling need link, a sphinx-needs schema violation, a reference
+   that does not resolve — and names every document that has one
+   (``doccheck.py --strict``, :doc:`cli`). The warnings do not stop the build
+   itself, so every document is built and reports, also one that only
+   imports a broken need from a peer. Stage-1 warnings are not read: stage 2
+   parses every document again.
+
+   Turn it on with ``-DZDOCS_STRICT=ON``; there is no need for ``-W`` in
+   ``ZDOCS_SPHINXOPTS_EXTRA`` or for ``-k 0`` on the build tool. Strict mode
+   needs the gate: with ``ZDOCS_STRICT`` on and no ``add_doc_check()`` call,
+   configure fails. Like ``-W``, it sees the warnings of the documents that
+   the last build read again; an incremental build that reads nothing again
+   reports nothing, so CI should build from scratch. A warning you cannot fix
+   can be let through with ``doc_check_accepted:`` (:doc:`registry-schema`),
+   by the text the gate prints. See
+   :doc:`../explanation/decisions/0015-strict-mode-in-the-gate`.
 
 ``ZDOCS_DOC_TAG``
    Default ``"development"``. Passed as a Sphinx tag (``-t``) on every build,
