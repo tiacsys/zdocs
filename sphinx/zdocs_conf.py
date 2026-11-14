@@ -113,9 +113,9 @@ def configure(
         # conditional extension list would make the two build stages' configs
         # differ and invalidate the doctree cache between them.
         "sphinx_needs",
-        # Re-reads the document when the needs TOML's content changes:
-        # sphinx-needs rebuilds only the HTML when its types, links or fields
-        # change, and an incremental build then crashes on a new link type.
+        # Re-reads the document when the needs TOML's content changes, from a
+        # fresh environment: an incremental build of an importing document
+        # crashes on a link type the TOML no longer has (sphinx-needs 9.2).
         # Also when the needs it imports from a peer's needs.json change:
         # else a page does not show a new incoming link from the peer.
         "needs_config_state",

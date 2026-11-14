@@ -71,8 +71,9 @@ Validation is a configure-time error
 ------------------------------------
 
 An unknown ``kind``, a group that no ``groups:`` entry declares, a remote
-document with no URL, an unknown key inside a sub-block: each is a fatal error
-naming the document, before anything is built.
+document with no URL, an unknown key inside a sub-block, two documents with
+one prefix, a group id that gives a document's target name: each is a fatal
+error naming the document, before anything is built.
 
 That strictness is a scar. An unrecognised ``kind`` string once fell through
 every call site to "treat it as an ordinary local Sphinx document" — the exact

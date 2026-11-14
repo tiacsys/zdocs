@@ -95,9 +95,10 @@ layout, not toggled from outside it.
    ``@kconfig_depends`` conditions) is set only if declared here.
 
    A change to the file's content makes every document that reads it re-read
-   its sources on the next incremental build (the engine's
-   ``needs_config_state`` extension), because sphinx-needs itself rebuilds only
-   the HTML when a type, link or field changes.
+   its sources on the next incremental build, from a fresh environment (the
+   engine's ``needs_config_state`` extension). sphinx-needs 9.2 re-reads a
+   document itself when a link type is added, but an importing document's
+   pickled environment still crashes on a link type that was removed.
 
    This variable is real and load-bearing — every sample and fixture in this
    repository that uses sphinx-needs sets it — but it is not mentioned

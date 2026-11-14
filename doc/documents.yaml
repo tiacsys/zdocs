@@ -9,18 +9,13 @@
 # generated Python/CMake reference (D2). No `needs:`, no `testmodule:`, no
 # `doxygen_xml:` — this docset uses none of them (D6).
 #
-# FINDING (report §7, worth restating here): the group id for the "Manual"
-# group is deliberately NOT "manual" -- add_docs_from_registry's per-(group,
-# builder) aggregate targets are named "<group id>-<builder>", so a group id
-# equal to a document id of the same builder collides with that document's
-# OWN "<doc id>-<builder>" target at configure time (CMP0002 duplicate
-# target). Measured: with the group id literally "manual", configure fails
-# with "add_custom_target cannot create target 'manual-html' because another
-# target with the same name already exists." This is unguarded in the engine
-# (F7 lists no such validation) -- per rule 3 this is a finding to report,
-# not a reason to patch the engine, so the id below is "guide" while the
-# TITLE stays "Manual" (nothing in the acceptance test or the registry schema
-# ties a group's id to its title).
+# The group id for the "Manual" group is deliberately NOT "manual" --
+# add_docs_from_registry's per-(group, builder) aggregate targets are named
+# "<group id>-<builder>", so a group id equal to a document id of the same
+# builder gives that document's OWN "<doc id>-<builder>" target name twice.
+# The registry validation rejects it, naming the group and the document. So
+# the id below is "guide" while the TITLE stays "Manual" (nothing ties a
+# group's id to its title).
 docs_root: "."
 base_url: "http://localhost:8020/"
 
