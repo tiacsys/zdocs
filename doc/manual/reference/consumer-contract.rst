@@ -82,8 +82,9 @@ layout, not toggled from outside it.
    :external+zdocs-api:py:func:`zdocs_conf.configure` falls back to it whenever
    a document's own ``conf.py`` passes no ``needs_config=`` argument — which is
    the common case, since the methodology is normally project-scoped, not
-   per-document (every document in a set is handed an import of every other's
-   needs, so they all have to agree on what a need type means).
+   per-document (by default every document in a set is handed an import of
+   every other's needs, so they all have to agree on what a need type
+   means).
 
    It must declare every need type, link and field the engine's directives
    emit under the names you map their roles to: the test directives' three

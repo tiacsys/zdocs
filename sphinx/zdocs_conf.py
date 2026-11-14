@@ -369,7 +369,7 @@ def configure(
     #
     # PROJECT-scoped by default (ZDOCS_NEEDS_CONFIG), not per document, because
     # the registry hands EVERY document an import of every needs-publishing
-    # document. So a set whose documents declare different types is not a
+    # document (unless its `imports:` narrows that). So a set whose documents declare different types is not a
     # configuration choice, it is a broken import, and the failure lands on the
     # innocent document rather than the one that diverged.
     #

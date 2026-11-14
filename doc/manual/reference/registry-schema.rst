@@ -216,7 +216,8 @@ Each entry in ``documents:``, keyed by its id:
 
 ``needs``
    Opt-in sub-block; presence is what makes this document importable as
-   external needs by every peer. Two shapes:
+   external needs by every peer (or by the peers that list it in
+   ``imports:``). Two shapes:
 
    .. code-block:: yaml
 
@@ -245,6 +246,39 @@ Each entry in ``documents:``, keyed by its id:
    reads all its sources again on the next incremental build (the engine's
    ``needs_config_state`` extension). Otherwise the pages of the peer do not
    show a new incoming link from this document.
+
+``imports``
+   Optional list of document ids, for a ``kind: sphinx`` document: the
+   documents whose needs this one imports, instead of every needs-publishing
+   peer (the default without the key). The imports of a listed document are
+   followed too, transitively: an imported need keeps its links, which
+   resolve only if their targets are imported as well, so a document lists
+   only its direct upstream documents.
+
+   .. code-block:: yaml
+
+      stkreq:
+        needs: {source: json}
+        imports: []            # imports no needs
+      sysreq:
+        needs: {source: json}
+        imports: [stkreq]
+      swreq:
+        needs: {source: json}
+        imports: [sysreq]      # imports sysreq's and stkreq's needs
+
+   A listed document without ``imports:`` adds only itself, not every peer:
+   if its needs link into a document that is not imported, the importing
+   document warns ``needs.external_link_outgoing``; list that document, or
+   give the imported one an ``imports:``. The imports decide the incoming
+   links too: a document shows "refined by" and the like only from the needs
+   it imports, so ``imports: []`` on an upstream document hides the links of
+   its downstream documents. Intersphinx, doxylink and navigation are not
+   affected. Each id must exist, must have a ``needs:`` block, must not be
+   ``crossref: false`` and must not be the document itself; a document with
+   ``crossref: false`` cannot have the key. Anything else is a
+   configure-time error. See
+   :doc:`../explanation/decisions/0017-per-document-needs-imports`.
 
 ``doxygen_tag``
    Opt-in; publishes this document's needs as Doxygen requirements, so a

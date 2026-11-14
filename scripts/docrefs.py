@@ -237,6 +237,70 @@ def _validate_doxygen_tag(doc_id, meta, kind, doxygen_tag):
         )
 
 
+def _validate_imports(doc_id, meta, kind, documents):
+    """Raise ``ValueError`` unless ``imports:`` is usable on ``doc_id``."""
+    imports = meta["imports"]
+    if kind != "sphinx":
+        raise ValueError(
+            f"docrefs: document '{doc_id}' has 'imports:' but is kind '{kind}' — "
+            f"only a 'kind: sphinx' document imports needs"
+        )
+    if not isinstance(imports, list) or not all(isinstance(i, str) for i in imports):
+        raise ValueError(
+            f"docrefs: document '{doc_id}' has imports '{imports}' — use a list of "
+            f"document ids, e.g. '[sysreq, stkreq]'"
+        )
+    if not _crossref(meta):
+        raise ValueError(
+            f"docrefs: document '{doc_id}' has 'imports:' and 'crossref: false' — "
+            f"a document out of the link graph imports nothing"
+        )
+    for ref_id in imports:
+        ref_meta = documents.get(ref_id)
+        if ref_meta is None:
+            raise ValueError(
+                f"docrefs: document '{doc_id}' imports '{ref_id}', which does not "
+                f"exist in the registry"
+            )
+        if ref_id == doc_id:
+            raise ValueError(f"docrefs: document '{doc_id}' imports itself")
+        if ref_meta.get("needs") is None:
+            raise ValueError(
+                f"docrefs: document '{doc_id}' imports '{ref_id}', which publishes "
+                f"no needs (no 'needs:' block)"
+            )
+        if not _crossref(ref_meta):
+            raise ValueError(
+                f"docrefs: document '{doc_id}' imports '{ref_id}', which is "
+                f"'crossref: false'"
+            )
+
+
+def needs_imports(doc_id, documents):
+    """The ids of the documents whose needs ``doc_id`` imports, or ``None`` for all.
+
+    Without ``imports:``, a document imports the needs of every peer (the
+    default). With it, the documents it lists, and the documents THEY list in
+    their own ``imports:``, transitively: an imported need keeps its links,
+    and they resolve only if their targets are imported too. So a downstream
+    document lists only its direct upstream documents. A listed document
+    without ``imports:`` adds only itself. ``doc_id`` itself is never in the
+    set.
+    """
+    if "imports" not in documents.get(doc_id, {}):
+        return None
+    seen = set()
+    todo = [doc_id]
+    while todo:
+        current = todo.pop()
+        for ref_id in documents.get(current, {}).get("imports", []):
+            if ref_id not in seen:
+                seen.add(ref_id)
+                todo.append(ref_id)
+    seen.discard(doc_id)
+    return seen
+
+
 def _validate(data):
     """Raise ``ValueError`` on any registry validation problem."""
     groups = data.get("groups")
@@ -314,6 +378,10 @@ def _validate(data):
         doxygen_tag = meta.get("doxygen_tag")
         if doxygen_tag is not None:
             _validate_doxygen_tag(doc_id, meta, kind, doxygen_tag)
+
+        # -- imports: the documents whose needs this one imports ----------
+        if "imports" in meta:
+            _validate_imports(doc_id, meta, kind, data.get("documents", {}))
 
         # -- symbol_needs: one need per API symbol with \satisfies --------
         symbol_needs = meta.get("symbol_needs")
@@ -1015,6 +1083,8 @@ def load(this_doc=None, registry=None):
     doxylink = {}
 
     this_crossref = _crossref(documents.get(this_doc, {}))
+    # The peers whose needs this document imports (None: every peer).
+    needs_peers = needs_imports(this_doc, documents)
     for doc_id, meta in documents.items():
         if doc_id == this_doc or not (this_crossref and _crossref(meta)):
             continue
@@ -1058,7 +1128,7 @@ def load(this_doc=None, registry=None):
             doxylink[prefix] = (str(html_dir / DOXYGEN_TAGFILE), base_dir_url)
 
         needs_cfg = meta.get("needs")
-        if needs_cfg is not None:
+        if needs_cfg is not None and (needs_peers is None or doc_id in needs_peers):
             if needs_cfg.get("source") == "inventory":
                 json_path = _needs_stub_from_inventory(html_dir, doc_id, needs_cfg)
             else:
