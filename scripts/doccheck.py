@@ -21,6 +21,13 @@ And one for the PDF set (deploy/pdf, one <title>_<version>.pdf per document):
      or a destination that the file does not have. A PDF is mailed and filed
      as it is, so such a link stays dead; it needs pypdf to read the PDFs.
 
+And one in strict mode (`--strict`, the ZDOCS_STRICT option):
+
+  D. A warning in a document's stage-2 Sphinx build: a dangling need link, a
+     sphinx-needs schema violation, a broken reference. The build itself does
+     not stop on it, so every document builds and each one with a warning is
+     named here, also the innocent ones that only import a broken need.
+
 All need a built deploy tree, so `--deploy` is required.  There is no
 sources-only mode: a run that checks nothing must not be able to print OK.
 
@@ -34,7 +41,7 @@ in the registry is precisely the case the check must not flag.  It also made
 documentation ABOUT this engine unwritable, since every example id in a
 tutorial was a finding.
 
-Usage:  doccheck.py --registry doc/documents.yaml --deploy DIR
+Usage:  doccheck.py --registry doc/documents.yaml --deploy DIR [--strict]
 Exit:   0 clean, 1 findings, 2 bad invocation.
 """
 
@@ -258,6 +265,63 @@ def check_deploy_links(deploy: Path, base_url: str) -> list[str]:
     return findings
 
 
+#: A message line in a Sphinx warning file (``-w``): every line of the file
+#: that starts a warning or an error, e.g.
+#: ``<build>/handbook/src/index.rst:12: WARNING: ... [needs.link_outgoing]``.
+_WARNING_LINE_RE = re.compile(r"\b(WARNING|ERROR|CRITICAL|SEVERE):")
+_ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
+
+#: Builders whose warning file the strict check does not read: html-live is a
+#: preview server, not a build of the set.
+_STRICT_SKIPPED_BUILDERS = ("html-live",)
+
+
+def sphinx_warning_logs(registry: dict, build_dir: Path) -> list[tuple[str, str, Path]]:
+    """``(doc id, builder, path)`` of the stage-2 warning file of each Sphinx build.
+
+    ``add_sphinx_target`` writes each stage-2 run's warnings to
+    ``<build>/<doc id>/build/<builder>.log`` (``sphinx-build -w``). The stage-1
+    ``xref.log`` is not read: stage 2 parses every document again, so a real
+    warning shows there too, and stage 1 has warnings that mean nothing there
+    (see ``xref_builder``). A builder that did not run (no file) is left out.
+    """
+    logs = []
+    for doc_id, meta in (registry.get("documents") or {}).items():
+        if meta.get("kind", "sphinx") != "sphinx":
+            continue
+        for builder in meta.get("builders") or []:
+            if builder in _STRICT_SKIPPED_BUILDERS:
+                continue
+            path = build_dir / doc_id / "build" / f"{builder}.log"
+            if path.is_file():
+                logs.append((doc_id, builder, path))
+    return logs
+
+
+def check_sphinx_warnings(logs: list[tuple[str, str, Path]], build_dir: Path) -> list[str]:
+    """D. (strict mode) Every warning in a stage-2 Sphinx warning file.
+
+    One finding per message, prefixed with the document and builder, so each
+    document with a warning is named. The build directory is cut from the
+    paths in the message, so the text is the same on every host and can be
+    accepted in ``doc_check_accepted:``.
+    """
+    findings = []
+    prefixes = {f"{build_dir.resolve()}/", f"{build_dir.absolute()}/"}
+    for doc_id, builder, path in logs:
+        text = _ANSI_RE.sub("", path.read_text(encoding="utf-8", errors="replace"))
+        lines = [line.rstrip() for line in text.splitlines() if line.strip()]
+        messages = [line for line in lines if _WARNING_LINE_RE.search(line)]
+        if lines and not messages:
+            # Something was written, but not in the usual form: still a finding.
+            messages = lines[:1]
+        for message in messages:
+            for prefix in prefixes:
+                message = message.replace(prefix, "")
+            findings.append(f"{doc_id} ({builder}): {message}")
+    return findings
+
+
 def _accepted_findings(entries) -> dict[str, str] | None:
     """The registry's ``doc_check_accepted:`` list as ``{finding: reason}``.
 
@@ -290,6 +354,12 @@ def main() -> int:
         required=True,
         help="built deploy/ tree — both checks read it, so it is not optional",
     )
+    ap.add_argument(
+        "--strict",
+        action="store_true",
+        help="also fail on every warning in the stage-2 Sphinx warning files, "
+        "read from <deploy>/../<doc>/build/<builder>.log (ZDOCS_STRICT)",
+    )
     args = ap.parse_args()
 
     if not args.registry.is_file():
@@ -315,6 +385,21 @@ def main() -> int:
         )
     groups.append(("dead deploy links", check_deploy_links(args.deploy, base_url)))
     groups.append(("dead links between the PDFs", check_pdf_set(args.deploy)))
+    strict_logs = []
+    if args.strict:
+        build_dir = args.deploy.parent
+        strict_logs = sphinx_warning_logs(raw, build_dir)
+        strict_findings = check_sphinx_warnings(strict_logs, build_dir)
+        has_sphinx = any(
+            meta.get("kind", "sphinx") == "sphinx" for meta in (raw.get("documents") or {}).values()
+        )
+        if has_sphinx and not strict_logs:
+            # A strict check that read nothing must not pass.
+            strict_findings.append(
+                f"no Sphinx warning file under {build_dir}/<doc>/build/ -- "
+                "build the documents before the strict check"
+            )
+        groups.append(("Sphinx warnings (strict)", strict_findings))
 
     total = 0
     matched: set[str] = set()
@@ -349,6 +434,8 @@ def main() -> int:
         print(f"\ndoccheck: FAILED with {total} finding(s)", file=sys.stderr)
         return 1
     checked = "deploy tree"
+    if args.strict:
+        checked += f", strict: {len(strict_logs)} Sphinx warning file(s) clean"
     if not smoke_page:
         # Said out loud rather than skipped quietly: a check that is not running
         # must not look like a check that passed.

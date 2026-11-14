@@ -132,6 +132,21 @@ add_custom_target(all-docs ALL)
 add_custom_target(clean-docs)
 
 #-------------------------------------------------------------------------------
+# Strict mode (ADR 0015).
+#
+# A Sphinx warning does not stop the build, so every document builds, and the
+# doc-check gate (add_doc_check) then fails on every warning in every
+# document's stage-2 warning file, naming each document. That is the whole
+# difference from `-W`: with -W, ninja stops at the first document that fails,
+# and with a dangling link imported from a peer that is often an innocent one.
+set(
+  ZDOCS_STRICT
+  OFF
+  CACHE BOOL
+  "Fail the doc-check gate on every warning of every Sphinx document's stage-2 build"
+)
+
+#-------------------------------------------------------------------------------
 # Post-build integrity checks (scripts/doccheck.py).
 #
 # add_doc_check(REGISTRY <documents.yaml>)
@@ -156,6 +171,11 @@ add_custom_target(clean-docs)
   breaks WITHOUT breaking the build — a removed document leaving a reference
   that quietly degrades to plain text, or a parse-time role whose peer
   inventory was not ready emitting nothing at all.
+
+  With ``ZDOCS_STRICT`` on, it also fails on every warning in each Sphinx
+  document's stage-2 warning file (``doccheck.py --strict``), naming every
+  document that has one. Strict mode needs this gate: a configure with
+  ``ZDOCS_STRICT`` on and no ``add_doc_check()`` call is an error.
 #]==]
 function(add_doc_check)
   cmake_parse_arguments(ARGS "" "REGISTRY" "" ${ARGN})
@@ -173,6 +193,10 @@ function(add_doc_check)
     --deploy
     ${CMAKE_CURRENT_BINARY_DIR}/deploy
   )
+  if(ZDOCS_STRICT)
+    list(APPEND doccheck_cmd --strict)
+  endif()
+  set_property(GLOBAL PROPERTY ZDOCS_DOC_CHECK_ADDED TRUE)
 
   add_custom_target(
     doc-check
@@ -188,3 +212,18 @@ function(add_doc_check)
     USES_TERMINAL
   )
 endfunction()
+
+# ZDOCS_STRICT without the gate would turn nothing into an error: say so at
+# the end of the configure, once every add_doc_check() call has run.
+function(zdocs_check_strict_gate)
+  get_property(_zdocs_gate GLOBAL PROPERTY ZDOCS_DOC_CHECK_ADDED)
+  if(ZDOCS_STRICT AND NOT _zdocs_gate)
+    message(
+      FATAL_ERROR
+      "zdocs: ZDOCS_STRICT is ON, but add_doc_check() was never called. Strict "
+      "mode reports the Sphinx warnings in the doc-check gate; add "
+      "add_doc_check(REGISTRY <documents.yaml>) after add_docs_from_registry()."
+    )
+  endif()
+endfunction()
+cmake_language(DEFER DIRECTORY ${CMAKE_SOURCE_DIR} CALL zdocs_check_strict_gate)

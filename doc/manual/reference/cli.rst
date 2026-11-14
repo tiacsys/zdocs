@@ -73,7 +73,7 @@ mode.
 .. code-block:: console
 
    $ python3 <zdocs>/scripts/doccheck.py --registry documents.yaml \
-       --deploy build/deploy
+       --deploy build/deploy [--strict]
 
 Wired automatically as a ``POST_BUILD`` step of ``all-docs`` by
 :external+zdocs-api:cmake:command:`add_doc_check <command:add_doc_check>` (so an ordinary build already
@@ -107,6 +107,16 @@ C. **Dead links between the PDFs** — reads each PDF of the PDF set
    (:doc:`../explanation/decisions/0013-linked-pdf-set`). Needs ``pypdf``
    (``sphinx/requirements-doc.txt``); without it, a set with PDFs is a
    finding. Without PDFs, the check has nothing to read.
+
+D. **Sphinx warnings** — a fourth check, only with ``--strict``, which
+   :external+zdocs-api:cmake:command:`add_doc_check <command:add_doc_check>`
+   passes when ``ZDOCS_STRICT`` is on (:doc:`consumer-contract`). Reads the
+   stage-2 warning file of each Sphinx build of the set,
+   ``<deploy>/../<id>/build/<builder>.log`` (``sphinx-build -w``; not
+   ``html-live``, not the stage-1 ``xref.log``), and reports each warning or
+   error as ``<id> (<builder>): <message>``, with the build directory cut from
+   the paths in the message. A set with Sphinx documents but no warning file
+   at all is a finding: the documents were not built.
 
 Exit codes: **0** clean, **1** one or more findings (printed to stderr, grouped
 by check, with a final ``doccheck: FAILED with N finding(s)`` line), **2** bad
