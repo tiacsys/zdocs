@@ -431,6 +431,100 @@ def _validate(data):
             f"their PDF file name ({clash}) — give each its own 'title:'"
         )
 
+    _validate_prefixes(data.get("documents", {}))
+    _validate_group_targets(data.get("documents", {}))
+
+
+def _prefix(doc_id, meta):
+    """A document's cross-reference prefix: ``prefix:``, else the id with ``-`` as ``_``."""
+    return meta.get("prefix", doc_id.replace("-", "_"))
+
+
+#: The link map that each kind's prefix keys (see `load`). ``kind: external``
+#: has no prefix in use.
+_PREFIX_MAPS = {
+    "sphinx": "intersphinx_mapping",
+    "sphinx-external": "intersphinx_mapping",
+    "doxygen": "doxylink",
+    "doxygen-external": "doxylink",
+}
+
+
+def _validate_prefixes(documents):
+    """Raise ``ValueError`` if two documents have the same prefix in one link map.
+
+    ``intersphinx_mapping`` and ``doxylink`` are dicts keyed by prefix, so the
+    later of two such documents would replace the earlier one, and every
+    reference to the earlier one would resolve into the later one or not at
+    all. A Sphinx and a Doxygen document may share a prefix: they key two
+    different maps and two different roles (``:external+<prefix>:`` and
+    ``:<prefix>:``). Documents with ``crossref: false`` are in no map.
+    """
+    owners = {}
+    for doc_id, meta in documents.items():
+        link_map = _PREFIX_MAPS.get(meta.get("kind", "sphinx"))
+        if link_map is None or not _crossref(meta):
+            continue
+        key = (link_map, _prefix(doc_id, meta))
+        if key in owners:
+            raise ValueError(
+                f"docrefs: documents '{owners[key]}' and '{doc_id}' have the same "
+                f"prefix '{key[1]}' — {link_map} is keyed by prefix, so one would "
+                f"replace the other. Give one of them its own 'prefix:'"
+            )
+        owners[key] = doc_id
+
+
+def _document_targets(doc_id, meta):
+    """The CMake target names that ``add_docs_from_registry`` creates for one document."""
+    kind = meta.get("kind", "sphinx")
+    if kind == "sphinx":
+        names = {f"{doc_id}-index", f"{doc_id}-clean"}
+        for builder in meta.get("builders", []):
+            names |= {f"{doc_id}-{builder}", f"{doc_id}-{builder}-nodeps"}
+        if meta.get("doxygen_tag") is not None:
+            names.add(f"{doc_id}-needstag")
+        return names
+    if kind == "doxygen":
+        return {doc_id, f"{doc_id}-nodeps", f"{doc_id}-tag", f"{doc_id}-clean"}
+    if kind == "doxygen-external":
+        return {f"{doc_id}-tag"}
+    return set()
+
+
+def _validate_group_targets(documents):
+    """Raise ``ValueError`` if a group's aggregate target has a document's target name.
+
+    ``add_docs_from_registry`` creates ``<group>-<builder>`` and
+    ``<group>-<builder>-nodeps`` for each group and builder of its documents (a
+    Doxygen document counts as ``html``). A group id equal to the id of a
+    document with the same builder gives the same name as that document's own
+    target, and CMake stops with "another target with the same name already
+    exists" — without naming the registry. Checked here so the error names
+    the group and the document.
+    """
+    targets = {}
+    for doc_id, meta in documents.items():
+        for name in _document_targets(doc_id, meta):
+            targets[name] = doc_id
+    for meta in documents.values():
+        kind = meta.get("kind", "sphinx")
+        if kind == "sphinx":
+            builders = meta.get("builders", [])
+        elif kind == "doxygen":
+            builders = ["html"]
+        else:
+            continue
+        group = meta.get("group")
+        for builder in builders:
+            for name in (f"{group}-{builder}", f"{group}-{builder}-nodeps"):
+                if name in targets:
+                    raise ValueError(
+                        f"docrefs: group '{group}' and document '{targets[name]}' "
+                        f"both make the CMake target '{name}' — give the group "
+                        f"another id (only its 'title:' is shown)"
+                    )
+
 
 def _groups(data):
     """Ordered ``[{id, title, mode, display}]`` from the registry ``groups:`` list."""
@@ -1030,7 +1124,7 @@ def load(this_doc=None, registry=None):
         # against the source file's.
         url = _peer_url(doc_id, meta)
         html_dir = deploy / path
-        prefix = meta.get("prefix", doc_id.replace("-", "_"))
+        prefix = _prefix(doc_id, meta)
 
         if kind == "sphinx":
             # Local inventory only (no URL fallback / no trailing None): a

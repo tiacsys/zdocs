@@ -98,7 +98,13 @@ Groups
 Each entry in ``groups:``:
 
 ``id`` (required)
-   Referenced by every document's ``group:``.
+   Referenced by every document's ``group:``. Also the stem of the group's
+   aggregate targets ``<id>-<builder>`` (see
+   :external+zdocs-api:cmake:command:`add_docs_from_registry <command:add_docs_from_registry>`),
+   so a group id equal to the id of a document with the same builder would
+   give two targets one name. That is a configure-time error naming the group
+   and the document; give the group another id (its ``title`` is what readers
+   see).
 
 ``title`` (required)
    The heading shown above this group's links in the navigation sidebar.
@@ -147,12 +153,13 @@ Each entry in ``documents:``, keyed by its id:
 
 ``prefix``
    The document's cross-reference :term:`prefix`. Defaults to the id with
-   ``-`` replaced by ``_``. **Not validated for uniqueness** — nothing in
-   ``docrefs.py`` rejects two documents sharing a prefix; since
-   ``intersphinx_mapping``/``doxylink`` are built by assigning into a plain
-   dict keyed by prefix, a collision would silently make one document's
-   mapping entry overwrite the other's, in registry order, with no diagnostic.
-   Keep prefixes distinct by convention.
+   ``-`` replaced by ``_``. Unique per link map: two ``sphinx`` or
+   ``sphinx-external`` documents (``intersphinx_mapping``), or two ``doxygen``
+   or ``doxygen-external`` documents (``doxylink``), with the same prefix are a
+   configure-time error naming both — the default prefix counts, so ids
+   ``my-doc`` and ``my_doc`` clash. A Sphinx and a Doxygen document may share
+   a prefix: they key different maps and different roles. ``kind: external``
+   and ``crossref: false`` documents are in no map and are not checked.
 
 ``builders``
    Required, non-empty, for a ``sphinx`` document (or one omitting ``kind:``
