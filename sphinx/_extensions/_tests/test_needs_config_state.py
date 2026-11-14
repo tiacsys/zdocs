@@ -4,10 +4,12 @@
 
 """needs_config_state — incremental builds after the needs TOML or an import changes.
 
-sphinx-needs registers its types, links and fields with rebuild "html", so a
-change to the TOML they come from did not re-read any document. The pickled
+sphinx-needs 8.3 registered its types, links and fields with rebuild "html", so
+a change to the TOML they come from did not re-read any document. The pickled
 needs had no entry for a new link type, and the first need using it crashed the
 build: ``KeyError: "Link type 'fulfills' does not exist in backlinks."``.
+sphinx-needs 9.2 re-reads on a new link type itself; a removed one still crashes
+an importing document without the extension (the two control tests).
 
 A change to an imported needs.json (``needs_external_needs``) did not write the
 importing document's pages again either, so a new incoming link from a peer's
@@ -200,19 +202,63 @@ def test_drop_stale_environment(tmp_path):
     assert (tmp_path / ncs.STAMP_NAME).read_text().strip() == "d2"
 
 
-def test_control_without_the_extension_the_build_crashes(make_app, tmp_path):
-    """The defect, pinned against sphinx-needs as installed.
+def test_control_without_the_extension_a_new_link_type_is_read_again(make_app, tmp_path):
+    """sphinx-needs as installed, without the extension: a NEW link type.
 
-    Should this start failing after a sphinx-needs upgrade, sphinx-needs now
-    re-reads on a vocabulary change itself, and the extension may be obsolete.
+    sphinx-needs 8.3 crashed here (``KeyError: "Link type 'fulfills' does not
+    exist in backlinks."``). Since 9.2 a change to ``needs_links`` is a config
+    change for sphinx-needs itself, and the document is read again. If this
+    fails after a downgrade, the crash is back.
     """
     src = _project(tmp_path, ["sphinx_needs"])
     make_app("html", srcdir=src).build()
 
     _add_link_type_and_use_it(src)
     app = make_app("html", srcdir=src)
-    with pytest.raises(Exception, match="does not exist in backlinks"):
+    app.build()
+    assert app.statuscode == 0
+    assert "config changed ('needs_links')" in app._status.getvalue()
+
+
+def test_control_without_the_extension_a_removed_link_type_crashes(make_app, tmp_path):
+    """The defect the extension still exists for, pinned against sphinx-needs as installed.
+
+    A peer drops a link type its needs used (see
+    `test_removing_a_used_link_type_does_not_crash_an_importer`). Without the
+    extension, the importer's pickled environment still holds the old
+    vocabulary and the build crashes. Should this start failing after a
+    sphinx-needs upgrade, sphinx-needs now handles it itself, and the TOML
+    half of the extension may be obsolete.
+    """
+    peer = _project(tmp_path / "peer", ["sphinx_needs"])
+    importer = _project(tmp_path / "importer", ["sphinx_needs"])
+    toml = tmp_path / "needs.toml"
+    toml.write_text(_TOML)
+    peer_json = tmp_path / "peer" / "src" / "_build" / "html" / "needs.json"
+    for src, extra in (
+        (peer, "needs_build_json = True\nversion = '1.0'\n"),
+        (importer, f"version = '1.0'\nneeds_external_needs = [{{'json_path': {str(peer_json)!r}, "
+                   "'base_url': 'http://peer/', 'version': '1.0', 'id_prefix': 'P'}]\n"),
+    ):
+        conf = src / "conf.py"
+        conf.write_text(conf.read_text().replace("'needs.toml'", repr(str(toml))) + extra)
+
+    def build(src):
+        app = make_app("html", srcdir=src)
         app.build()
+        return app
+
+    for src in (peer, importer):
+        build(src)
+    _add_link_type_and_use_it(peer)
+    toml.write_text(_TOML + _NEW_LINK)
+    for src in (peer, importer):
+        build(src)
+    toml.write_text(_TOML)
+    (peer / "other.rst").write_text(_OTHER)
+    build(peer)
+    with pytest.raises(Exception, match="does not exist in backlinks"):
+        build(importer)
 
 
 # ---------------------------------------------------------------------------

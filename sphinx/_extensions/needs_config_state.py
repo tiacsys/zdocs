@@ -7,13 +7,16 @@
 A document's need types, links and fields come from a TOML file
 (``needs_from_toml``, set by ``zdocs_conf`` from ``ZDOCS_NEEDS_CONFIG``).
 Sphinx re-reads every document when a config value registered with rebuild
-``"env"`` changes, but sphinx-needs registers ``needs_types``,
+``"env"`` changes, but sphinx-needs 8.3 registered ``needs_types``,
 ``needs_links`` and ``needs_fields`` with rebuild ``"html"``, and the config
-value ``needs_from_toml`` is only the file's path. So after the file gains a
-link type, an incremental build reuses the pickled needs, which have no entry
-for the new link, and the first new need that uses it crashes the build:
+value ``needs_from_toml`` is only the file's path. So after the file gained a
+link type, an incremental build reused the pickled needs, which had no entry
+for the new link, and the first new need that used it crashed the build:
 ``KeyError: "Link type 'fulfills' does not exist in backlinks."``. A clean
-build works.
+build worked. sphinx-needs 9.2 reads the document again itself when the
+links change ("config changed ('needs_links')"), but the case below, a
+REMOVED link type in an importing document, still crashes without this
+extension.
 
 This extension registers ``zdocs_needs_config_digest``, rebuild ``"env"``,
 and sets it to the SHA-256 of the file's content. A change to the file changes
