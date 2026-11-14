@@ -33,3 +33,4 @@ repeating it.
    0012-relative-cross-document-links
    0013-linked-pdf-set
    0014-pdf-layout-in-a-style-file
+   0017-per-document-needs-imports

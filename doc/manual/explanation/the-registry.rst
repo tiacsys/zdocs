@@ -55,7 +55,8 @@ Engine features that only some documents want are enabled by the *presence of a
 sub-block*, not by a boolean:
 
 ``needs:``
-   This document publishes sphinx-needs data, and imports every peer's.
+   This document publishes sphinx-needs data, and imports every peer's —
+   or, with an ``imports:`` list, only the listed documents' and theirs.
 
 ``testmodule:``
    This document renders test specifications or test reports. The block is the
