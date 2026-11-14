@@ -175,14 +175,21 @@ def configure(
     if symbol_needs is not None:
         all_extensions.append("symbol_needs")
 
-    # Version, from this document's scoped git tags in the CONSUMING repository
-    # (or the VERSION env override) — the same resolver the Doxygen side uses, so
-    # the two toolchains cannot disagree about the version of one repository.
+    # Version, from this document's scoped git tags in ITS repository: the west
+    # project of `version_project:` if set (an upstream document built here
+    # through doc_dir), else the CONSUMING repository (or the VERSION env
+    # override) — the same resolver the Doxygen side uses, so the two
+    # toolchains cannot disagree about the version of one repository.
     #
     # Displayed by _templates/layout.html, which restores the sidebar version
     # block sphinx_rtd_theme 3.1.0 dropped — without it a self-hosted document
     # resolves a version perfectly and shows it nowhere.
-    version = docrefs.resolve_version(scope=version_scope, repo_root=project_base)
+    version = docrefs.resolve_version(
+        scope=version_scope,
+        project=refs.version_project if refs else None,
+        repo_root=project_base,
+        west=_env_path("ZDOCS_WEST_TOPDIR"),
+    )
 
     copyright_year = datetime.datetime.now().year
     holder = copyright_holder or author or project
