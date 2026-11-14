@@ -42,6 +42,7 @@ def test_the_pdf_loads_zdocs_sty_with_the_values_of_the_build(tmp_path, monkeypa
 def test_the_title_page_names_the_pdfs_of_the_set(tmp_path, monkeypatch):
     class Refs:
         version_scope = None
+        version_project = None
         testmodule = None
         symbol_needs = None
         intersphinx_mapping = doxylink = needs_external_needs = reference_groups = {}

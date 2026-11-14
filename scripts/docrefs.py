@@ -606,27 +606,66 @@ def _fallback_version(repo_root=None):
     return "v0.0-dev"
 
 
+def _west_project_path(project, west=None):
+    """Absolute path of west project ``project``, or ``None`` if west cannot say.
+
+    ``west list --format {abspath} <project>``, run in ``west`` (the workspace
+    topdir) when given, else in the current directory.
+    """
+    try:
+        path = subprocess.check_output(
+            ["west", "list", "--format", "{abspath}", project],
+            cwd=str(west) if west else None,
+            text=True,
+            stderr=subprocess.DEVNULL,
+        ).strip()
+    except Exception:
+        return None
+    return path or None
+
+
+def _describe(repo, *args):
+    """``git describe --tags --dirty <args>`` in ``repo``, or ``""`` on any error."""
+    try:
+        return subprocess.check_output(
+            ["git", "describe", "--tags", *args, "--dirty"],
+            cwd=repo,
+            text=True,
+            stderr=subprocess.DEVNULL,
+        ).strip()
+    except Exception:
+        return ""
+
+
 def resolve_version(*, scope=None, project=None, repo_root=None, west=None):
     """Resolve a document's displayed version. Single shared implementation.
 
-    Used by both the sphinx path (``conf_common.py``) and the doxygen path (the
-    ``version`` CLI subcommand). Resolution order:
+    Used by both the Sphinx path (``zdocs_conf.configure``) and the Doxygen
+    path (the ``version`` CLI subcommand), so the two toolchains show the same
+    version for the same document. Resolution order:
 
       1. The ``VERSION`` env var (CI / reproducible-build escape hatch) wins.
-      2. ``scope``: ``git -C <repo_root> describe --tags --match "<scope>/*"
-         --dirty``; the leading ``"<scope>/"`` is stripped so the version
-         displays clean (``proj/0.1-dirty`` -> ``0.1-dirty``). No mandatory
-         "v" prefix on the version component — SOP-DOCCTL's release tags
-         (``<document-id>/<version>``, e.g. ``sop-docctl/1.0``, created by
-         ``docctl approve``) don't use one; a scope pattern that required
-         "v" never matched those tags and silently fell back to (4) below.
-      3. ``project``: a west project name — its path is resolved via
-         ``west list --format {abspath} <project>`` (run in the west topdir),
-         then
-         ``git -C <path> describe --tags --always --dirty`` (its own tag, else
-         short sha, ``-dirty`` on a dirty tree).
-      4. Otherwise / on any error -> graceful dev fallback
-         (``v0.0-dev+g<short-sha of repo_root>``).
+      2. The repository whose tags date the document: ``project``, a west
+         project name, resolved with ``west list --format {abspath}
+         <project>`` (run in the west topdir ``west``) — the document comes
+         from that repository, e.g. an upstream document a downstream set
+         builds through ``doc_dir:``. Without ``project`` (or when west cannot
+         resolve it), ``repo_root``: the consuming repository.
+      3. ``scope``: ``git describe --tags --match "<scope>/*" --dirty`` in that
+         repository; the leading ``"<scope>/"`` is stripped so the version
+         displays clean (``proj/0.1-dirty`` -> ``0.1-dirty``). ``"/"`` matches
+         every tag and strips nothing. No mandatory "v" prefix on the version
+         component — SOP-DOCCTL's release tags (``<document-id>/<version>``,
+         e.g. ``sop-docctl/1.0``, created by ``docctl approve``) don't use
+         one; a scope pattern that required "v" never matched those tags and
+         silently fell back to (5) below.
+      4. ``project`` without ``scope``: ``git describe --tags --dirty`` in
+         the project (its nearest tag), with the tag namespace stripped like
+         a scope's (``sysreq/v1.0-2-gabc`` -> ``v1.0-2-gabc``): everything up
+         to the last ``/``. A project without tags gets the fallback (5), so
+         it shows the same as an unscoped document in its own repository.
+      5. Otherwise / on any error -> graceful dev fallback
+         (``v0.0-dev+g<short-sha>`` of the repository from 2).
 
     Never raises. Deterministic for a given HEAD so the value is identical
     across the two sphinx build stages (xref and html).
@@ -634,52 +673,47 @@ def resolve_version(*, scope=None, project=None, repo_root=None, west=None):
     version = os.environ.get("VERSION")
     if version:
         return version.strip()
+
+    repo = repo_root
+    project_path = _west_project_path(project, west) if project else None
+    if project_path:
+        repo = project_path
+
     if scope:
-        try:
-            if scope == "/":
-                described = subprocess.check_output(
-                    ["git", "describe", "--tags", "--dirty"],
-                    cwd=repo_root,
-                    text=True,
-                    stderr=subprocess.DEVNULL,
-                ).strip()
-            else:
-                described = subprocess.check_output(
-                    ["git", "describe", "--tags", "--match", f"{scope}/*", "--dirty"],
-                    cwd=repo_root,
-                    text=True,
-                    stderr=subprocess.DEVNULL,
-                ).strip()
-        except Exception:
-            return _fallback_version(repo_root)
+        if scope == "/":
+            described = _describe(repo)
+        else:
+            described = _describe(repo, "--match", f"{scope}/*")
         if not described:
-            return _fallback_version(repo_root)
+            return _fallback_version(repo)
         prefix = f"{scope}/"
         if described.startswith(prefix):
             described = described[len(prefix) :]
         return described
 
-    if project:
-        try:
-            path = subprocess.check_output(
-                ["west", "list", "--format", "{abspath}", project],
-                cwd=str(west) if west else None,
-                text=True,
-                stderr=subprocess.DEVNULL,
-            ).strip()
-            described = subprocess.check_output(
-                ["git", "describe", "--tags", "--always", "--dirty"],
-                cwd=path,
-                text=True,
-                stderr=subprocess.DEVNULL,
-            ).strip()
-        except Exception:
-            return _fallback_version(repo_root)
+    if project_path:
+        described = _describe(project_path)
         if not described:
-            return _fallback_version(repo_root)
-        return described
+            return _fallback_version(project_path)
+        # The tag namespace: a describe result has no "/" after the tag.
+        return described.rsplit("/", 1)[-1]
 
-    return _fallback_version(repo_root)
+    return _fallback_version(repo)
+
+
+def document_version(meta, repo_root=None, west=None):
+    """The version a registry document shows: `resolve_version` with its
+    ``version_scope`` and ``version_project``.
+
+    ``west`` defaults to ``ZDOCS_WEST_TOPDIR``, which ``add_sphinx_target``
+    passes to every Sphinx run and to ``pdf-deliver``.
+    """
+    return resolve_version(
+        scope=meta.get("version_scope"),
+        project=meta.get("version_project"),
+        repo_root=repo_root,
+        west=west or os.environ.get("ZDOCS_WEST_TOPDIR") or None,
+    )
 
 
 def _file_part(text, keep):
@@ -707,8 +741,8 @@ def pdf_file_name(title, version):
 def pdf_files(documents, repo_root=None):
     """``{doc id: PDF file name}`` of each document of the set with a ``latex`` builder.
 
-    The version is the one the document shows (`resolve_version`, its
-    ``version_scope`` in ``repo_root``), so a document's PDF and the links of
+    The version is the one the document shows (`document_version`: its
+    ``version_scope`` and ``version_project``), so a document's PDF and the links of
     its peers into it name the same file. `_validate` rejects two documents
     with the same title part.
     """
@@ -716,7 +750,7 @@ def pdf_files(documents, repo_root=None):
     for doc_id, meta in documents.items():
         if meta.get("kind", "sphinx") != "sphinx" or "latex" not in meta.get("builders", []):
             continue
-        version = resolve_version(scope=meta.get("version_scope"), repo_root=repo_root)
+        version = document_version(meta, repo_root)
         files[doc_id] = pdf_file_name(meta.get("title") or doc_id, version)
     return files
 
@@ -1593,8 +1627,8 @@ def _cli(argv=None):
         "version",
         help="print a document's git-derived version string",
         description="Resolve and print a document's displayed version from its "
-        "version_scope (consuming repo git tags) or version_project "
-        "(a west project's own git describe).",
+        "version_scope (git tags <scope>/*) in the repository of its "
+        "version_project (a west project), else of the consuming project.",
     )
     p_version.add_argument(
         "doc_id", help="registry id of this document, taken verbatim, e.g. widget"
@@ -1640,12 +1674,7 @@ def _cli(argv=None):
         remove_pdfs(args.doc_id, args.pdf_dir, args.registry or None)
     elif args.command == "version":
         meta = _registry(args.registry)["documents"].get(args.doc_id, {})
-        ver = resolve_version(
-            scope=meta.get("version_scope"),
-            project=meta.get("version_project"),
-            repo_root=args.repo_root,
-            west=args.west,
-        )
+        ver = document_version(meta, repo_root=args.repo_root, west=args.west)
         sys.stdout.write(ver)
 
 

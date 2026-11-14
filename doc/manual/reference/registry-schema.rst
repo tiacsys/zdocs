@@ -172,17 +172,26 @@ Each entry in ``documents:``, keyed by its id:
    one, but are not the same thing by definition.
 
 ``version_scope``
-   A git-tag namespace (e.g. ``"widget"``, matched as ``<scope>/v*`` in the
-   consuming repository, then stripped for display — ``widget/v2.3`` renders
-   as ``v2.3``). Exercised throughout this repository's samples and fixtures.
+   A git-tag namespace (e.g. ``"widget"``, matched as ``<scope>/*`` in the
+   document's repository — see ``version_project`` — then stripped for
+   display: ``widget/v2.3`` renders as ``v2.3``). ``"/"`` matches every tag.
+   Exercised throughout this repository's samples and fixtures.
 
 ``version_project``
-   An alternative to ``version_scope``: a west project name, whose own tags are
-   used instead (``west list --format {abspath} <project>`` then
-   ``git describe`` in that path). No sample or fixture in this repository
-   sets it; this path is implemented and read
-   (:external+zdocs-api:py:func:`docrefs.resolve_version`) but unverified
-   against a real registry here.
+   The west project the document comes from, for a document that a set builds
+   from another repository through ``doc_dir:``. It names the repository whose
+   tags date the document (``west list --format {abspath} <project>``, run in
+   ``ZDOCS_WEST_TOPDIR``); without it, that is the consuming repository
+   (``ZDOCS_PROJECT_BASE``). With ``version_scope`` too, the scope's tags are
+   matched in that project, so an upstream document shows the version it has
+   in its own repository's build. Without ``version_scope``, the project's
+   nearest tag (``git describe --tags``), with its namespace stripped
+   (``sysreq/v1.0`` renders as ``v1.0``), or ``v0.0-dev+g<sha>`` of the
+   project without a tag. Sphinx
+   and Doxygen documents resolve it the same way
+   (:external+zdocs-api:py:func:`docrefs.resolve_version`). A project west
+   cannot resolve falls back to the consuming repository. See
+   :doc:`../explanation/decisions/0016-a-document-is-dated-by-its-repository`.
 
 ``path``
    Deploy-relative path override, defaulting to ``html/<id>``. No known
